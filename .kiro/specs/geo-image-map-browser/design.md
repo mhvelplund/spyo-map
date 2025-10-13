@@ -2,7 +2,10 @@
 
 ## Overview
 
-The geo-image-map-browser is a React/TypeScript web application that displays geo-tagged images on an interactive Google Maps interface. The system consists of two main components: a Python data preparation script and a React web application. The Python script processes image folders to extract EXIF data into an SQLite database, while the React app provides an interactive map interface for browsing and viewing images.
+The spyro-map is a React/TypeScript web application that displays geo-tagged images on an interactive Google Maps
+interface. The system consists of two main components: a Python data preparation script and a React web application. The
+Python script processes image folders to extract EXIF data into an SQLite database, while the React app provides an
+interactive map interface for browsing and viewing images.
 
 ## Architecture
 
@@ -76,8 +79,17 @@ interface ImageRecord {
   latitude: number;
   longitude: number;
   timestamp: string;
-  camera: string;
-  exifData: Record<string, any>;
+  latitudeRef?: string; // e.g.: North latitude
+  longitudeRef?: string; // e.g.: East longitude
+  altitudeRef?: string; // e.g.: Sea level
+  altitude?: number;
+  speedRef?: string; // e.g.: Kilometers per hour
+  speed?: number;
+  imgDirectionRef?: string; // e.g.: Magnetic direction
+  imgDirection?: number;
+  destBearingRef?: string; // e.g.: Magnetic direction
+  destBearing?: number;
+  hPositioningError?: number;
 }
 
 class DatabaseService {
@@ -170,13 +182,17 @@ CREATE TABLE images (
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     timestamp TEXT,
-    camera TEXT,
-    lens TEXT,
-    focal_length REAL,
-    aperture REAL,
-    shutter_speed TEXT,
-    iso INTEGER,
-    exif_data TEXT -- JSON blob for additional EXIF data
+    latitude_ref TEXT,
+    longitude_ref TEXT,
+    altitude_ref TEXT,
+    altitude REAL,
+    speed_ref TEXT,
+    speed REAL,
+    img_direction_ref TEXT,
+    img_direction REAL,
+    dest_bearing_ref TEXT,
+    dest_bearing REAL,
+    h_positioning_error REAL
 );
 
 CREATE INDEX idx_location ON images(latitude, longitude);
@@ -191,22 +207,13 @@ interface GeoLocation {
   longitude: number;
 }
 
-interface ExifData {
-  camera?: string;
-  lens?: string;
-  focalLength?: number;
-  aperture?: number;
-  shutterSpeed?: string;
-  iso?: number;
-  timestamp?: string;
-}
 
 interface ImageRecord {
   id: string;
   path: string;
   thumbnailPath: string;
   location: GeoLocation;
-  exifData: ExifData;
+  timestamp?: string;
 }
 
 interface AppState {

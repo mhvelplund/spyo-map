@@ -25,3 +25,7 @@ image display to allow users to share the image on Twitter/X, Facebook, and Inst
 
 Since I forgot about the overhead of scanning 1000's of images for EXIF data, I later had to add a manual **Requirement 0**
 for a tool to generate an SQLite database from a folder with the data in it.
+
+After reading the proposed design document I was mostly happy, but since I don't care about focal length and camera
+types, and I do care about any optional additional GPS data, I updated the design to not store that information.
+Finally, I renamed the app from "geo-image-map-browser" to "spyro-map".
