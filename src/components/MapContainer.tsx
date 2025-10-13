@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Wrapper, Status } from '@googlemaps/react-wrapper';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import type { MapContainerProps, ImageRecord } from '../types';
+import { Status, Wrapper } from '@googlemaps/react-wrapper';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ImageRecord, MapContainerProps } from '../types';
 import './MapContainer.css';
 
 // Temporary type declarations for Google Maps

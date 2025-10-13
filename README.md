@@ -114,10 +114,8 @@ The instructions for generating an API key are wrong, but I was able to generate
 file. However when starting the DEV server, the app seems to be having trouble reading the database, apparently because
 it still assumes the database to have a path column for the files. I will need to fix that.
 
-While explaining the issue to Kiro, I realize that files might potentially have differing file endings, so I also need
-to update the Python import tool to convert all photos to JPEG.
-
-<!-- TODO: convert all images to JPG during scaling -->
+While explaining the issue to Kiro, I realize that files might potentially have differing file endings, but I notice
+that all files are converted to JPEG with the ".jpg" ending during scaling, so that's good.
 
 During the process, Kiro decided to move the image folder and the database into a sub-folder called "public" which I
 went along with.
@@ -146,6 +144,8 @@ displays the larger image, but the metadata on the image looks broken.
 
 Still, very close to the goal. I'm going to leave it for now and move on to the next task.
 
+<!-- TODO: Fix image metadata in lightbox -->
+
 #### Implement nearby image navigation
 
 This task ran without a hitch, but only partially implemented the feature. The 1k nearby logic was already in place, and
@@ -154,6 +154,15 @@ there seems to be some graphics missing for showing an icon to close the lightbo
 closer inspection, it's because the images are stored as inline SVG in the `src\components\ImageModal.tsx` file, which
 the browser doesn't support. I tell Kiro to replace them with generic icons from the Font Awesome package, and now it
 looks right, at the expense of another 300k of fonts and code.
+
+#### Add URL routing for image sharing
+
+This step took a long time and when it was complete, it had introduced a bug where the images in the lightbox now used
+an invalid URL. Once it was explained to Kiro (twice) it fixed the issue partially. However, the feature doesn't work.
+The URL displayed in the browser doesn't work if used directly, so there is an issue with the routing. After some
+Googling, the solution was to use a react HashRouter which Kiro could implement. The application now uses HashRouter
+instead of BrowserRouter, which means URLs look like `http://hostname/#/image/id` instead of `http://hostname/image/id`.
+This works with any static web server without requiring server-side configuration for SPA routing.
 
 ## EXIF Extraction Script
 
@@ -306,3 +315,9 @@ The MapContainer component integrates Google Maps to display geo-tagged images a
 - Modern browsers with ES6+ support
 - Mobile-responsive design
 - Touch-friendly interactions
+
+<!--
+TODO:
+* fix spyro -> spyo
+* blur humans in pictures
+-->

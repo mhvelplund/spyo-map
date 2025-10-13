@@ -211,8 +211,8 @@ export class DatabaseService {
     const id = row.id as string;
     return {
       id,
-      path: `images/${id}.jpg`,
-      thumbnailPath: `images/thumbnails/${id}.jpg`,
+      path: `/images/${id}.jpg`,
+      thumbnailPath: `/images/thumbnails/${id}.jpg`,
       latitude: row.latitude as number,
       longitude: row.longitude as number,
       timestamp: row.timestamp as string,
