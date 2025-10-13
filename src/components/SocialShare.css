@@ -1,0 +1,132 @@
+.social-share {
+  margin-top: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid #e0e0e0;
+}
+
+.social-share-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem 0;
+  color: #333;
+}
+
+.social-share-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.social-share-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: white;
+  min-height: 44px; /* Touch-friendly minimum size */
+  min-width: 44px;
+}
+
+.social-share-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.social-share-button:active {
+  transform: translateY(0);
+}
+
+.social-share-button:focus {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+/* Platform-specific colors */
+.social-share-button.twitter {
+  background-color: #1da1f2;
+}
+
+.social-share-button.twitter:hover {
+  background-color: #1a91da;
+}
+
+.social-share-button.facebook {
+  background-color: #1877f2;
+}
+
+.social-share-button.facebook:hover {
+  background-color: #166fe5;
+}
+
+.social-share-button.instagram {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+.social-share-button.instagram:hover {
+  background: linear-gradient(45deg, #e8842b 0%, #d85a34 25%, #d01e3b 50%, #c01b5e 75%, #b01080 100%);
+}
+
+.social-share-button i {
+  font-size: 1rem;
+}
+
+.social-share-button span {
+  font-size: 0.875rem;
+}
+
+.copy-success-message {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .social-share-buttons {
+    flex-direction: column;
+  }
+  
+  .social-share-button {
+    justify-content: center;
+    width: 100%;
+    padding: 0.75rem 1rem;
+  }
+  
+  .social-share-button span {
+    font-size: 1rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .social-share-button {
+    border: 2px solid currentColor;
+  }
+  
+  .copy-success-message {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .social-share-button {
+    transition: none;
+  }
+  
+  .social-share-button:hover {
+    transform: none;
+  }
+}

@@ -164,6 +164,11 @@ Googling, the solution was to use a react HashRouter which Kiro could implement.
 instead of BrowserRouter, which means URLs look like `http://hostname/#/image/id` instead of `http://hostname/image/id`.
 This works with any static web server without requiring server-side configuration for SPA routing.
 
+#### Create social media sharing functionality
+
+Kiro almost managed this one in the first attempt, but the URLs used in shared links used the old host routing scheme.
+It was a very quick fix however, to add `/#` in front of the URL to fix that. Didn't require Kiro's help.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.

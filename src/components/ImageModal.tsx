@@ -1,6 +1,7 @@
-import { useEffect, useCallback, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ImageModalProps } from '../types';
 import './ImageModal.css';
+import SocialShare from './SocialShare';
 
 const ImageModal: React.FC<ImageModalProps> = ({
   image,
@@ -218,6 +219,12 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 {nearbyImages.length} nearby images
               </div>
             )}
+            
+            {/* Social sharing */}
+            <SocialShare 
+              imageUrl={`/#/image/${image.id}`}
+              imageTitle={`Photo taken on ${imageDate} at ${imageTime}`}
+            />
           </div>
         </div>
       </div>
