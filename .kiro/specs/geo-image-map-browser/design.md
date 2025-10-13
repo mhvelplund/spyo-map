@@ -177,21 +177,19 @@ const SocialShare: React.FC<SocialShareProps>
 ```sql
 CREATE TABLE images (
     id TEXT PRIMARY KEY,
-    path TEXT NOT NULL,
-    thumbnail_path TEXT NOT NULL,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    timestamp TEXT,
-    latitude_ref TEXT,
-    longitude_ref TEXT,
-    altitude_ref TEXT,
-    altitude REAL,
-    speed_ref TEXT,
-    speed REAL,
-    img_direction_ref TEXT,
-    img_direction REAL,
-    dest_bearing_ref TEXT,
-    dest_bearing REAL,
+    latitude REAL
+    longitude REAL
+    timestamp TEXT
+    latitude_ref TEXT
+    longitude_ref TEXT
+    altitude_ref INTEGER
+    altitude REAL
+    speed_ref TEXT
+    speed REAL
+    img_direction_ref TEXT
+    img_direction REAL
+    dest_bearing_ref TEXT
+    dest_bearing REAL
     h_positioning_error REAL
 );
 

@@ -25,15 +25,21 @@ class ExifExtractor:
     # Supported image formats
     SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.tiff', '.tif'}
     
-    # Thumbnail settings
+    # Image processing settings
+    MAX_IMAGE_SIZE = (2048, 2048)
     THUMBNAIL_SIZE = (200, 200)
+    IMAGE_QUALITY = 90
     THUMBNAIL_QUALITY = 85
     
     def __init__(self, root_folder: str):
         self.root_folder = Path(root_folder).resolve()
-        self.db_path = self.root_folder / "images.db"
-        self.thumbnails_dir = self.root_folder / "thumbnails"
+        # Create images directory structure in web application root
+        self.images_dir = Path.cwd() / "images"
+        self.thumbnails_dir = self.images_dir / "thumbnails"
+        self.images_dir.mkdir(exist_ok=True)
         self.thumbnails_dir.mkdir(exist_ok=True)
+        # Database goes in web application root
+        self.db_path = Path.cwd() / "images.db"
     
     def scan_images(self) -> List[Dict[str, Any]]:
         """Scan folder recursively for images and extract EXIF data."""
@@ -83,14 +89,13 @@ class ExifExtractor:
                 # Create relative path for web access
                 relative_path = image_path.relative_to(self.root_folder)
                 
-                # Generate thumbnail
-                thumbnail_path = self.create_thumbnail(image_path, image_id)
+                # Create scaled image and thumbnail (paths can be derived from ID)
+                self.create_scaled_image(image_path, image_id)
+                self.create_thumbnail(image_path, image_id)
                 
-                # Compile image record
+                # Compile image record (no path fields needed - can be derived from ID)
                 image_record = {
                     'id': image_id,
-                    'path': str(relative_path).replace('\\', '/'),  # Ensure forward slashes for web
-                    'thumbnail_path': thumbnail_path,
                     'latitude': gps_data['latitude'],
                     'longitude': gps_data['longitude'],
                     'timestamp': self.extract_timestamp(exif_dict),
@@ -193,7 +198,27 @@ class ExifExtractor:
         unique_string = f"{path_str}_{mtime}"
         return hashlib.md5(unique_string.encode()).hexdigest()
     
-    def create_thumbnail(self, image_path: Path, image_id: str) -> str:
+    def create_scaled_image(self, image_path: Path, image_id: str) -> None:
+        """Create a scaled version of the image (max 2048x2048) and save it in images folder."""
+        scaled_filename = f"{image_id}.jpg"
+        scaled_path = self.images_dir / scaled_filename
+        
+        try:
+            with Image.open(image_path) as img:
+                # Convert to RGB if necessary (for PNG, etc.)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Scale image maintaining aspect ratio (max 2048x2048)
+                img.thumbnail(self.MAX_IMAGE_SIZE, Image.Resampling.LANCZOS)
+                
+                # Save with optimization
+                img.save(scaled_path, 'JPEG', quality=self.IMAGE_QUALITY, optimize=True)
+            
+        except Exception as e:
+            print(f"Error creating scaled image for {image_path}: {e}")
+    
+    def create_thumbnail(self, image_path: Path, image_id: str) -> None:
         """Create an optimized thumbnail for the image."""
         thumbnail_filename = f"{image_id}.jpg"
         thumbnail_path = self.thumbnails_dir / thumbnail_filename
@@ -210,12 +235,8 @@ class ExifExtractor:
                 # Save with optimization
                 img.save(thumbnail_path, 'JPEG', quality=self.THUMBNAIL_QUALITY, optimize=True)
             
-            # Return relative path for web access
-            return f"thumbnails/{thumbnail_filename}"
-            
         except Exception as e:
             print(f"Error creating thumbnail for {image_path}: {e}")
-            return ""
     
     def create_database(self, images_data: List[Dict[str, Any]]) -> None:
         """Create SQLite database and insert image data."""
@@ -228,12 +249,10 @@ class ExifExtractor:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Create table with comprehensive GPS fields
+        # Create table with comprehensive GPS fields (paths derived from ID)
         cursor.execute('''
             CREATE TABLE images (
                 id TEXT PRIMARY KEY,
-                path TEXT NOT NULL,
-                thumbnail_path TEXT NOT NULL,
                 latitude REAL NOT NULL,
                 longitude REAL NOT NULL,
                 timestamp TEXT,
@@ -259,15 +278,13 @@ class ExifExtractor:
         for image_data in images_data:
             cursor.execute('''
                 INSERT INTO images (
-                    id, path, thumbnail_path, latitude, longitude, timestamp,
+                    id, latitude, longitude, timestamp,
                     latitude_ref, longitude_ref, altitude_ref, altitude,
                     speed_ref, speed, img_direction_ref, img_direction,
                     dest_bearing_ref, dest_bearing, h_positioning_error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 image_data['id'],
-                image_data['path'],
-                image_data['thumbnail_path'],
                 image_data['latitude'],
                 image_data['longitude'],
                 image_data['timestamp'],
@@ -311,6 +328,7 @@ class ExifExtractor:
         print("\n" + "=" * 50)
         print("Processing complete!")
         print(f"Database: {self.db_path}")
+        print(f"Scaled images: {self.images_dir}")
         print(f"Thumbnails: {self.thumbnails_dir}")
         print(f"Images processed: {len(images_data)}")
 

@@ -1,6 +1,7 @@
 # Implementation Plan
 
-- [ ] 1. Create Python EXIF extraction script
+- [x] 1. Create Python EXIF extraction script
+
   - Write a single-file Python script that scans image folders recursively
   - Extract GPS coordinates and additional location metadata from EXIF data
   - Generate SQLite database with comprehensive GPS fields (latitude, longitude, altitude, direction, speed, etc.)
@@ -12,10 +13,11 @@
   - Configure project structure with components, services, and utilities directories
   - Set up TypeScript interfaces for ImageRecord and database schema
   - Install and configure essential dependencies (React Router, Google Maps, etc.)
+  - Create basic HTML template and entry point
   - _Requirements: 5.1, 5.2, 5.3_
 
 - [ ] 3. Implement database service layer
-  - Create DatabaseService class to handle SQLite database operations
+  - Create DatabaseService class to handle SQLite database operations via SQL.js
   - Implement methods for loading images, querying by ID, and finding nearby images
   - Add haversine distance calculation for proximity searches
   - Handle database connection and error scenarios gracefully
