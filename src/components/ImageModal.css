@@ -1,0 +1,279 @@
+/* Image Modal Overlay */
+.image-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Modal Container */
+.image-modal-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 1200px;
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Close Button */
+.modal-close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  z-index: 1001;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close-button:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.modal-close-button:focus {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+/* Navigation Buttons */
+.modal-nav-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  z-index: 1001;
+  transition: background-color 0.2s ease;
+}
+
+.modal-nav-button:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.modal-nav-button:focus {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+.modal-nav-prev {
+  left: 10px;
+}
+
+.modal-nav-next {
+  right: 10px;
+}
+
+/* Image Content */
+.image-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.image-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Image Metadata */
+.image-metadata {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.image-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.image-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.image-time,
+.image-altitude,
+.image-coordinates {
+  display: flex;
+  align-items: center;
+}
+
+.navigation-info {
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .image-modal-overlay {
+    padding: 10px;
+  }
+
+  .image-modal-container {
+    max-height: none;
+    height: 100vh;
+  }
+
+  /* Larger touch targets for mobile */
+  .modal-close-button,
+  .modal-nav-button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .modal-close-button {
+    top: 15px;
+    right: 15px;
+  }
+
+  .modal-nav-prev {
+    left: 15px;
+  }
+
+  .modal-nav-next {
+    right: 15px;
+  }
+
+  /* Adjust image container for mobile */
+  .image-container {
+    margin-bottom: 15px;
+  }
+
+  /* Stack metadata items vertically on small screens */
+  .image-details {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .image-title {
+    font-size: 16px;
+  }
+
+  .image-details {
+    font-size: 13px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .image-modal-overlay {
+    padding: 5px;
+  }
+
+  .image-metadata {
+    padding: 12px;
+  }
+
+  .image-title {
+    font-size: 14px;
+  }
+
+  .image-details {
+    font-size: 12px;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .image-modal-container {
+    flex-direction: row;
+  }
+
+  .image-container {
+    margin-bottom: 0;
+    margin-right: 20px;
+  }
+
+  .image-metadata {
+    width: 300px;
+    flex-shrink: 0;
+    height: fit-content;
+    align-self: flex-start;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .modal-image {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .modal-close-button,
+  .modal-nav-button {
+    transition: none;
+  }
+}
+
+/* Focus styles for accessibility */
+.image-modal-overlay:focus-within .modal-close-button,
+.image-modal-overlay:focus-within .modal-nav-button {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+/* Loading state for images */
+.modal-image[src=""] {
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-image[src=""]:before {
+  content: "Loading...";
+  color: #666;
+}

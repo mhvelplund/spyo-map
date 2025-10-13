@@ -134,6 +134,18 @@ There is however, an ominous warning in the console, indicating that the code is
 
 This, and a subsequent warning was easily fixed by asking Kiro to update the code appropriately.
 
+#### Build image modal and lightbox functionality
+
+The generation step looked smoother this time, and the app can run without errors. Clicking a map thumbnail correctly
+displays the larger image, but the metadata on the image looks broken.
+
+> **Photo taken on Invalid Date**<br/>
+> Invalid Date<br/>
+> Altitude: 45m<br/>
+> 55.646103, 12.614439
+
+Still, very close to the goal. I'm going to leave it for now and move on to the next task.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
