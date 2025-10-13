@@ -53,6 +53,11 @@
   outline-offset: 2px;
 }
 
+.modal-close-button i,
+.modal-nav-button i {
+  font-size: 18px;
+}
+
 /* Navigation Buttons */
 .modal-nav-button {
   position: absolute;

@@ -149,10 +149,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           aria-label="Close image modal"
           type="button"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+          <i className="fas fa-times" aria-hidden="true"></i>
         </button>
 
         {/* Navigation buttons */}
@@ -164,9 +161,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
               aria-label="Previous image"
               type="button"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <polyline points="15,18 9,12 15,6"></polyline>
-              </svg>
+              <i className="fas fa-chevron-left" aria-hidden="true"></i>
             </button>
             <button
               className="modal-nav-button modal-nav-next"
@@ -174,9 +169,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
               aria-label="Next image"
               type="button"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <polyline points="9,18 15,12 9,6"></polyline>
-              </svg>
+              <i className="fas fa-chevron-right" aria-hidden="true"></i>
             </button>
           </>
         )}

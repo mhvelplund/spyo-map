@@ -146,6 +146,15 @@ displays the larger image, but the metadata on the image looks broken.
 
 Still, very close to the goal. I'm going to leave it for now and move on to the next task.
 
+#### Implement nearby image navigation
+
+This task ran without a hitch, but only partially implemented the feature. The 1k nearby logic was already in place, and
+it is now possible to navigate between images in a group with the arrow keys and swiping on mobile devices. However,
+there seems to be some graphics missing for showing an icon to close the lightbox and and for left- and right-arrows. On
+closer inspection, it's because the images are stored as inline SVG in the `src\components\ImageModal.tsx` file, which
+the browser doesn't support. I tell Kiro to replace them with generic icons from the Font Awesome package, and now it
+looks right, at the expense of another 300k of fonts and code.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
