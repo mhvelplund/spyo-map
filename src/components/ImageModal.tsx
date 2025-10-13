@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useId } from 'react';
+import { useEffect, useCallback, useId, useRef, useState } from 'react';
 import type { ImageModalProps } from '../types';
 import './ImageModal.css';
 
@@ -10,6 +10,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
   onNavigate
 }) => {
   const modalTitleId = useId();
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
   // Handle escape key press
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!isOpen) return;
@@ -60,6 +63,49 @@ const ImageModal: React.FC<ImageModalProps> = ({
       event.preventDefault();
       onClose();
     }
+  };
+
+  // Touch event handlers for swipe navigation
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (!nearbyImages.length || nearbyImages.length <= 1) return;
+    
+    const touch = event.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchEnd(null);
+  };
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touch = event.touches[0];
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd || nearbyImages.length <= 1) {
+      setTouchStart(null);
+      setTouchEnd(null);
+      return;
+    }
+
+    const deltaX = touchStart.x - touchEnd.x;
+    const deltaY = touchStart.y - touchEnd.y;
+    const minSwipeDistance = 50;
+    
+    // Only trigger swipe if horizontal movement is greater than vertical
+    // and the swipe distance is sufficient
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+      if (deltaX > 0) {
+        // Swiped left - go to next image
+        onNavigate('next');
+      } else {
+        // Swiped right - go to previous image
+        onNavigate('prev');
+      }
+    }
+
+    setTouchStart(null);
+    setTouchEnd(null);
   };
 
 
@@ -137,7 +183,13 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
         {/* Image container */}
         <div className="image-modal-content">
-          <div className="image-container">
+          <div 
+            className="image-container"
+            ref={imageContainerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <img
               src={image.path}
               alt={`Taken on ${imageDate} at ${imageTime}`}

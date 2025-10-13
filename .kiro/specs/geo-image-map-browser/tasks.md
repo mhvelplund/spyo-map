@@ -27,7 +27,6 @@
 
 - [x] 4. Create Google Maps integration
 
-
   - Set up Google Maps API integration using @googlemaps/react-wrapper
   - Implement MapContainer component with basic map display
   - Add custom image markers that display thumbnail previews
@@ -42,7 +41,7 @@
   - Ensure modal works properly on both desktop and mobile devices
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 6.4_
 
-- [ ] 6. Implement nearby image navigation
+- [x] 6. Implement nearby image navigation
 
   - Add logic to identify images within 1km radius of current image
   - Create navigation arrows (prev/next) for browsing nearby images

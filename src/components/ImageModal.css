@@ -104,6 +104,11 @@
   justify-content: center;
   overflow: hidden;
   margin-bottom: 20px;
+  touch-action: pan-x;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .modal-image {
@@ -114,6 +119,14 @@
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+/* Prevent image dragging on touch devices */
+.modal-image {
+  -webkit-user-drag: none;
+  -moz-user-drag: none;
 }
 
 /* Image Metadata */
@@ -187,6 +200,9 @@
   /* Adjust image container for mobile */
   .image-container {
     margin-bottom: 15px;
+    /* Improve touch responsiveness */
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Stack metadata items vertically on small screens */
@@ -201,6 +217,12 @@
 
   .image-details {
     font-size: 13px;
+  }
+
+  /* Add visual hint for swipe gesture */
+  .navigation-info::after {
+    content: " • Swipe to navigate";
+    opacity: 0.6;
   }
 }
 
@@ -243,9 +265,8 @@
 }
 
 /* High DPI displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+@media (min-resolution: 192dpi) {
   .modal-image {
-    image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
   }
 }
