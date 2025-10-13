@@ -22,3 +22,6 @@ image display to allow users to share the image on Twitter/X, Facebook, and Inst
 * The website should be reactive and work both on desktop and mobile devices
 * The code should be compressed for distribution to improve performance on slow devices
 ```
+
+Since I forgot about the overhead of scanning 1000's of images for EXIF data, I later had to add a manual **Requirement 0**
+for a tool to generate an SQLite database from a folder with the data in it.

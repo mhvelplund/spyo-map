@@ -1,3 +1,7 @@
 {
-    "kiroAgent.configureMCP": "Disabled"
+    "kiroAgent.configureMCP": "Disabled",
+    "cSpell.words": [
+        "EXIF",
+        "lightbox"
+    ]
 }

@@ -2,25 +2,42 @@
 
 ## Introduction
 
-This feature creates a browser-based web application that displays geo-tagged images on an interactive map. Users can browse images by location, view them in a modal lightbox, navigate between nearby images, and share them on social media. The application is built as a stateless React/TypeScript web app that can be hosted on any static web server.
+This feature creates a browser-based web application that displays geo-tagged images on an interactive map. Users can
+browse images by location, view them in a modal lightbox, navigate between nearby images, and share them on social
+media. The application is built as a stateless React/TypeScript web app that can be hosted on any static web server.
 
 ## Requirements
 
+### Requirement 0
+
+**User Story:** As a site administrator, I want a single-file Python script that I can run on a folder containing images
+to generate an SQLite database containing the EXIF data for every image nested in that folder.
+
+#### Acceptance Criteria
+
+1. WHEN the tool is run with a local folder path as parameter THEN the tool will scan that folder for any nested image.
+2. WHEN images with geo-location metadata are processed THEN the system SHALL all EXIF data
+3. IF an image lacks geo-location metadata THEN it should be ignored for further processing
+4. IF an image contains geo-location metadata THEN the system SHALL write all the EXIF data in the image, along with the
+   path to the file relative to the root of the web-application to an SQLite database in the root of the web-application
+
 ### Requirement 1
 
-**User Story:** As a user, I want to see geo-tagged images displayed as thumbnails on a map, so that I can explore images by their geographic location.
+**User Story:** As a user, I want to see geo-tagged images displayed as thumbnails on a map, so that I can explore
+images by their geographic location.
 
 #### Acceptance Criteria
 
 1. WHEN the application loads THEN the system SHALL display a Google Maps interface
-2. WHEN images with geo-location metadata are processed THEN the system SHALL extract GPS coordinates from EXIF data
-3. WHEN GPS coordinates are available THEN the system SHALL display image thumbnails at their corresponding map locations
+3. WHEN a list of images with GPS coordinates is available in the local SQLite database THEN the system SHALL display
+   image thumbnails at their corresponding map locations
 4. WHEN multiple images exist at similar coordinates THEN the system SHALL cluster them appropriately to avoid overlap
 5. IF an image lacks geo-location metadata THEN the system SHALL exclude it from the map display
 
 ### Requirement 2
 
-**User Story:** As a user, I want to click on image thumbnails to view the full-size image in a modal, so that I can see the complete image without leaving the map context.
+**User Story:** As a user, I want to click on image thumbnails to view the full-size image in a modal, so that I can see
+the complete image without leaving the map context.
 
 #### Acceptance Criteria
 
@@ -32,11 +49,12 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 3
 
-**User Story:** As a user, I want to navigate between nearby images using arrow buttons, so that I can browse related images without returning to the map.
+**User Story:** As a user, I want to navigate between nearby images using arrow buttons, so that I can browse related
+images without returning to the map.
 
 #### Acceptance Criteria
 
-1. WHEN viewing an image in the modal THEN the system SHALL identify other images within 1km radius
+1. WHEN viewing an image in the modal THEN the system SHALL identify other images within 1 kilometer radius
 2. WHEN nearby images exist THEN the system SHALL display left/right arrow navigation buttons
 3. WHEN a user clicks navigation arrows THEN the system SHALL load the next/previous nearby image
 4. WHEN navigating between images THEN the system SHALL update the browser URL accordingly
@@ -45,7 +63,8 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 4
 
-**User Story:** As a user, I want to share images on social media platforms, so that I can share interesting discoveries with my network.
+**User Story:** As a user, I want to share images on social media platforms, so that I can share interesting discoveries
+with my network.
 
 #### Acceptance Criteria
 
@@ -57,7 +76,8 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 5
 
-**User Story:** As a developer, I want the application built with React and TypeScript, so that it provides type safety and modern development practices.
+**User Story:** As a developer, I want the application built with React and TypeScript, so that it provides type safety
+and modern development practices.
 
 #### Acceptance Criteria
 
@@ -69,7 +89,8 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 6
 
-**User Story:** As a user, I want the application to work on both desktop and mobile devices, so that I can browse images regardless of my device.
+**User Story:** As a user, I want the application to work on both desktop and mobile devices, so that I can browse
+images regardless of my device.
 
 #### Acceptance Criteria
 
@@ -81,19 +102,22 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 7
 
-**User Story:** As a site administrator, I want the application to be deployable to any static web host, so that hosting and deployment are simple and cost-effective.
+**User Story:** As a site administrator, I want the application to be deployable to any static web host, so that hosting
+and deployment are simple and cost-effective.
 
 #### Acceptance Criteria
 
 1. WHEN building the application THEN the system SHALL generate static files suitable for web hosting
-2. WHEN deployed THEN the system SHALL not require server-side processing or databases
-3. WHEN storing data THEN the system SHALL only use client-side storage (localStorage, cookies)
+2. WHEN deployed THEN the system SHALL not require server-side processing or databases, apart from the SQLite database
+   in the web app root folder
+3. WHEN storing data at run time THEN the system SHALL only use client-side storage (localStorage, cookies)
 4. WHEN routing THEN the system SHALL use client-side routing compatible with static hosting
 5. WHEN accessing images THEN the system SHALL read from a local folder structure accessible via HTTP
 
 ### Requirement 8
 
-**User Story:** As a user on a slow connection, I want the application to load quickly, so that I can use it effectively even with limited bandwidth.
+**User Story:** As a user on a slow connection, I want the application to load quickly, so that I can use it effectively
+even with limited bandwidth.
 
 #### Acceptance Criteria
 
@@ -105,7 +129,8 @@ This feature creates a browser-based web application that displays geo-tagged im
 
 ### Requirement 9
 
-**User Story:** As a user, I want each image to have a unique URL, so that I can bookmark, share, or directly access specific images.
+**User Story:** As a user, I want each image to have a unique URL, so that I can bookmark, share, or directly access
+specific images.
 
 #### Acceptance Criteria
 
