@@ -1,13 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
-
-// Placeholder components - will be implemented in later tasks
-const MainMapView = () => (
-  <div className="main-view">
-    <h1>Spyro Map - Geo-Tagged Image Browser</h1>
-    <p>Interactive map browser for geo-tagged images</p>
-    <p>Map component will be implemented in task 4</p>
-  </div>
-)
+import MainMapView from '../components/MainMapView'
 
 const ImageView = () => (
   <div className="image-view">

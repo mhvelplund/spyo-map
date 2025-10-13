@@ -1,0 +1,87 @@
+.map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.map-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background-color: #f5f5f5;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #4285f4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.map-loading p {
+  color: #666;
+  font-size: 16px;
+  margin: 0;
+}
+
+.map-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 20px;
+  text-align: center;
+}
+
+.map-error p {
+  color: #856404;
+  font-size: 16px;
+  margin-bottom: 16px;
+  max-width: 400px;
+}
+
+.map-error button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.map-error button:hover {
+  background-color: #3367d6;
+}
+
+.map-error button:active {
+  background-color: #2851a3;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .map-loading p,
+  .map-error p {
+    font-size: 14px;
+  }
+  
+  .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+}

@@ -27,3 +27,4 @@ dist-ssr
 .test/
 images/
 images.db
+.env
