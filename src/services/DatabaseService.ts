@@ -58,8 +58,6 @@ export class DatabaseService {
       const stmt = this.db.prepare(`
         SELECT 
           id,
-          path,
-          thumbnail_path as thumbnailPath,
           latitude,
           longitude,
           timestamp,
@@ -107,8 +105,6 @@ export class DatabaseService {
       const stmt = this.db.prepare(`
         SELECT 
           id,
-          path,
-          thumbnail_path as thumbnailPath,
           latitude,
           longitude,
           timestamp,
@@ -157,8 +153,6 @@ export class DatabaseService {
       const stmt = this.db.prepare(`
         SELECT 
           id,
-          path,
-          thumbnail_path as thumbnailPath,
           latitude,
           longitude,
           timestamp,
@@ -214,10 +208,11 @@ export class DatabaseService {
    * Map database row to ImageRecord interface
    */
   private mapRowToImageRecord(row: Record<string, unknown>): ImageRecord {
+    const id = row.id as string;
     return {
-      id: row.id as string,
-      path: row.path as string,
-      thumbnailPath: row.thumbnailPath as string,
+      id,
+      path: `images/${id}.jpg`,
+      thumbnailPath: `images/thumbnails/${id}.jpg`,
       latitude: row.latitude as number,
       longitude: row.longitude as number,
       timestamp: row.timestamp as string,

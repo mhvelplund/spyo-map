@@ -18,8 +18,8 @@ interface GoogleMapProps {
 
 const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageSelect }) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
   const markerClustererRef = useRef<MarkerClusterer | null>(null);
 
   // Initialize map
@@ -40,46 +40,72 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
     mapInstanceRef.current = new google.maps.Map(mapRef.current, {
       center,
       zoom: images.length > 0 ? 10 : 2,
-      mapTypeId: google.maps.MapTypeId.ROADMAP,
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }]
-        }
-      ]
+      mapId: 'DEMO_MAP_ID', // Required for AdvancedMarkerElement
+      mapTypeId: google.maps.MapTypeId.ROADMAP
+      // Note: styles cannot be used when mapId is present
+      // Map styling must be configured in Google Cloud Console
     });
   }, [images]);
 
-  // Create custom marker with thumbnail
-  const createImageMarker = useCallback((image: ImageRecord): google.maps.Marker => {
+  // Create custom marker with thumbnail using AdvancedMarkerElement
+  const createImageMarker = useCallback((image: ImageRecord): any => {
     if (!mapInstanceRef.current) {
       throw new Error('Map not initialized');
     }
 
-    // Create custom marker icon with thumbnail
-    const markerIcon = {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-        <svg width="60" height="60" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <clipPath id="circle">
-              <circle cx="30" cy="30" r="25"/>
-            </clipPath>
-          </defs>
-          <circle cx="30" cy="30" r="28" fill="white" stroke="#333" stroke-width="2"/>
-          <image href="/${image.thumbnailPath}" x="5" y="5" width="50" height="50" clip-path="url(#circle)"/>
-        </svg>
-      `)}`,
-      scaledSize: new google.maps.Size(60, 60),
-      anchor: new google.maps.Point(30, 30)
+    // Create HTML content for the marker
+    const markerContent = document.createElement('div');
+    markerContent.className = 'custom-marker';
+    markerContent.style.cssText = `
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      overflow: hidden;
+      cursor: pointer;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    // Create thumbnail image
+    const thumbnailImg = document.createElement('img');
+    thumbnailImg.src = image.thumbnailPath;
+    thumbnailImg.alt = `Image taken on ${new Date(image.timestamp).toLocaleDateString()}`;
+    thumbnailImg.style.cssText = `
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      object-fit: cover;
+    `;
+    
+    // Handle image load error
+    thumbnailImg.onerror = () => {
+      markerContent.innerHTML = `
+        <div style="
+          width: 54px;
+          height: 54px;
+          border-radius: 50%;
+          background: #f0f0f0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: #666;
+        ">📷</div>
+      `;
     };
 
-    const marker = new google.maps.Marker({
+    markerContent.appendChild(thumbnailImg);
+
+    // Create the advanced marker
+    const marker = new google.maps.marker.AdvancedMarkerElement({
       position: { lat: image.latitude, lng: image.longitude },
       map: mapInstanceRef.current,
-      icon: markerIcon,
-      title: `Image taken on ${new Date(image.timestamp).toLocaleDateString()}`,
-      optimized: false // Required for custom SVG icons
+      content: markerContent,
+      title: `Image taken on ${new Date(image.timestamp).toLocaleDateString()}`
     });
 
     // Add click listener
@@ -96,7 +122,7 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
 
     // Clear existing markers
     markersRef.current.forEach(marker => {
-      marker.setMap(null);
+      marker.map = null;
     });
     markersRef.current = [];
 
@@ -116,21 +142,28 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
         markers: newMarkers,
         renderer: {
           render: ({ count, position }) => {
-            // Custom cluster marker
-            const svg = `
-              <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="25" cy="25" r="20" fill="#4285f4" stroke="white" stroke-width="3"/>
-                <text x="25" y="30" text-anchor="middle" fill="white" font-family="Arial" font-size="12" font-weight="bold">${count}</text>
-              </svg>
+            // Create HTML content for cluster marker
+            const clusterContent = document.createElement('div');
+            clusterContent.style.cssText = `
+              width: 50px;
+              height: 50px;
+              border-radius: 50%;
+              background: #4285f4;
+              border: 3px solid white;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              font-weight: bold;
+              font-size: 14px;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              cursor: pointer;
             `;
+            clusterContent.textContent = count.toString();
             
-            return new google.maps.Marker({
+            return new google.maps.marker.AdvancedMarkerElement({
               position,
-              icon: {
-                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-                scaledSize: new google.maps.Size(50, 50),
-                anchor: new google.maps.Point(25, 25)
-              }
+              content: clusterContent
             });
           }
         }
@@ -147,16 +180,20 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
 
     if (selectedMarker && mapInstanceRef.current) {
       // Center map on selected marker
-      const position = selectedMarker.getPosition();
+      const position = selectedMarker.position;
       if (position) {
         mapInstanceRef.current.panTo(position);
         mapInstanceRef.current.setZoom(Math.max(mapInstanceRef.current.getZoom() || 10, 15));
         
-        // Optionally add a bounce animation
-        selectedMarker.setAnimation(google.maps.Animation.BOUNCE);
-        setTimeout(() => {
-          selectedMarker.setAnimation(null);
-        }, 2000);
+        // Add visual highlight to the selected marker
+        const markerContent = selectedMarker.content as HTMLElement;
+        if (markerContent) {
+          // Add a pulsing animation
+          markerContent.style.animation = 'pulse 2s ease-in-out 3';
+          setTimeout(() => {
+            markerContent.style.animation = '';
+          }, 6000);
+        }
       }
     }
   }, [selectedImageId, images]);
@@ -219,7 +256,7 @@ const MapContainer: React.FC<MapContainerProps> = ({ images, selectedImageId, on
       <Wrapper 
         apiKey={GOOGLE_MAPS_API_KEY}
         render={renderMap}
-        libraries={['geometry']}
+        libraries={['marker']}
       />
     </div>
   );

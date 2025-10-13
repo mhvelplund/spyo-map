@@ -14,10 +14,10 @@ attempt at creating a full app with Kiro, but it was the first _partially_ succe
 
 ```plaintext
 I want to create a browser web-app that displays images on a map. The images are stored in a local folder and contain
-geo location metadata. 
+geo location metadata.
 
 Using the metadata, I want to display a map using Google Maps where the images are shown on the map in the location
-contained in their metadata as a small thumbnail. 
+contained in their metadata as a small thumbnail.
 
 Clicking the thumbnail should display the full image in a modal light box. When viewing an image, if there are any other
 images on the map within 1 km of the current image, there should be arrow buttons that allow the user to browse those
@@ -46,7 +46,7 @@ Finally, I renamed the app from "geo-image-map-browser" to "spyro-map".
 
 Whenever I edited Kiro's initial drafts of a file, I told Kiro about it in the interactive chat. Not certain that is
 important, but in earlier work, Kiro seemed to get confused if I edited fields without saying so. It's possible this is
-what the "Refine" and "Update tasks" buttons do. 
+what the "Refine" and "Update tasks" buttons do.
 
 From the modified design, Kiro generated a task list. I skimmed it with less enthusiasm than the previous two, because
 at this point I had spent about an hour doing my least favorite thing, _documentation_, and I was keen to get to the
@@ -66,17 +66,17 @@ readme file [below](#exif-extraction-script).
 
 The first step was to run the script on a folder, and it looks like it works, despite some issues. Mainly that it stores
 everything inside the scanned folder. As a nice surprise, it pre-generates thumbnails, which is another thing I should
-have thought of in the requirements. 
+have thought of in the requirements.
 
 I told Kiro to update the requirements for the "extract_exif.py" tool:
 
-* When the script scans a folder it should first create a new folder (if it doesn't exist) in the web application root
+- When the script scans a folder it should first create a new folder (if it doesn't exist) in the web application root
   folder called "images", and a sub-folder in images called "thumbnails"
-* When the script runs, it should create the SQLite data base in the web application root folder.
-* Any file that contains GPS information should be scaled so it isn't larger than 2048 by 2048 pixels while preserving
+- When the script runs, it should create the SQLite data base in the web application root folder.
+- Any file that contains GPS information should be scaled so it isn't larger than 2048 by 2048 pixels while preserving
   aspect ratio, and the new file should be saved in the "images" folder with the same name as its id in the sqlite
   database.
-* For any file with GPS data that is processed, its thumbnail should be saved in "images/thumbnails" with the same name
+- For any file with GPS data that is processed, its thumbnail should be saved in "images/thumbnails" with the same name
   as its id in the sqlite database.
 
 Another generation step, and the updates were implemented. Next I noticed that there was no reason to store image paths
@@ -101,7 +101,38 @@ making a huge mess, but it seems to work.
 #### Implement database service layer
 
 This created some utilities for reading from SQLite, but it's hard to tell if they will work at a glance, so I leave it
-as-is for now, and proceed to the next tasks.
+as-is for now, and proceed to the next tasks[^3].
+
+[^3]: In retrospect, I should have noticed that the model had references to paths. That's going to hurt me in the next step.
+
+#### Create Google Maps integration
+
+I was excited to see how this one panned out. Kiro struggled for a long time with it, and in the end generated some code
+along with some documentation in a file called `google-maps-setup.md` that I merged into this README [below](#google-maps-integration-setup).
+
+The instructions for generating an API key are wrong, but I was able to generate one anyway and put it in new `.env`
+file. However when starting the DEV server, the app seems to be having trouble reading the database, apparently because
+it still assumes the database to have a path column for the files. I will need to fix that.
+
+While explaining the issue to Kiro, I realize that files might potentially have differing file endings, so I also need
+to update the Python import tool to convert all photos to JPEG.
+
+<!-- TODO: convert all images to JPG during scaling -->
+
+During the process, Kiro decided to move the image folder and the database into a sub-folder called "public" which I
+went along with.
+
+To my immense surprise, the app now starts and shows a map with image locations, even grouping images that were taken
+close to each other. The only downside seems to be that the thumbnails are displayed as blank circles for now, instead of
+using the thumbnail image.
+
+There is however, an ominous warning in the console, indicating that the code is not up to spec with the latest API.
+
+> As of February 21st, 2024, google.maps.Marker is deprecated. Please use google.maps.marker.AdvancedMarkerElement
+> instead. At this time, google.maps.Marker is not scheduled to be discontinued, but
+> google.maps.marker.AdvancedMarkerElement is recommended over google.maps.Marker.
+
+This, and a subsequent warning was easily fixed by asking Kiro to update the code appropriately.
 
 ## EXIF Extraction Script
 
@@ -125,6 +156,7 @@ python extract_exif.py <path_to_image_folder>
 ```
 
 Example:
+
 ```bash
 python extract_exif.py ./photos
 ```
@@ -149,6 +181,7 @@ python extract_exif.py ./photos
 ### Database Schema
 
 The generated SQLite database includes these fields:
+
 - `id` - Unique image identifier (used to derive file paths: `images/{id}.jpg` and `images/thumbnails/{id}.jpg`)
 - `latitude`, `longitude` - GPS coordinates
 - `timestamp` - Image capture time
@@ -156,6 +189,7 @@ The generated SQLite database includes these fields:
 - Various reference fields for GPS data interpretation
 
 **Note:** Image and thumbnail paths are not stored in the database since they can be derived from the ID:
+
 - Scaled image: `images/{id}.jpg`
 - Thumbnail: `images/thumbnails/{id}.jpg`
 
@@ -166,81 +200,88 @@ The generated SQLite database includes these fields:
 
 Images without GPS metadata are automatically skipped.
 
-## React + TypeScript + Vite
+## Google Maps Integration Setup
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The MapContainer component integrates Google Maps to display geo-tagged images as interactive markers on a map.
 
-Currently, two official plugins are available:
+### Setup Instructions
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/)
-  (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-  for Fast Refresh
+1. **Get a Google Maps API Key**
 
-### React Compiler
+   - Visit [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the Maps JavaScript API
+   - Create credentials (API Key)
+   - Restrict the API key to your domain for security
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428)
-for tracking the progress.
+2. **Configure Environment Variables**
 
-### Expanding the ESLint configuration
+   ```bash
+   cp .env.example .env
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+   Edit `.env` and add your API key:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+   ```
+   VITE_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+3. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Component Architecture
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x)
-and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom)
-for React-specific lint rules:
+#### MapContainer
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Main wrapper component that handles Google Maps API loading
+- Manages error states and loading indicators
+- Provides fallback UI for API failures
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+#### GoogleMap (Internal Component)
+
+- Handles map initialization and configuration
+- Creates custom markers with thumbnail previews using `AdvancedMarkerElement`
+- Implements marker clustering using `@googlemaps/markerclusterer`
+- Manages marker interactions and selections
+
+### Custom Features
+
+#### Thumbnail Markers
+
+- Each image appears as a circular marker with its thumbnail
+- HTML-based markers using AdvancedMarkerElement with white border for visibility
+- Optimized for performance with proper sizing and error handling
+
+#### Marker Clustering
+
+- Automatically groups nearby markers to reduce clutter
+- Custom cluster styling with blue circles and white text
+- Responsive clustering based on zoom level
+
+#### Map Styling
+
+- Uses Google Maps default styling (custom styles must be configured in Google Cloud Console when using mapId)
+- Optimized for image browsing experience with AdvancedMarkerElement
+- Note: Custom map styles cannot be applied via JavaScript when using a mapId
+
+### Error Handling
+
+- **API Key Missing**: Shows configuration instructions
+- **API Load Failure**: Provides retry functionality
+- **Network Issues**: Graceful degradation with error messages
+- **Database Errors**: Handled at the service layer
+
+### Performance Considerations
+
+- Markers are created only when needed
+- Efficient clustering reduces rendering overhead
+- Optimized SVG icons for fast loading
+- Proper cleanup of map resources
+
+### Browser Compatibility
+
+- Modern browsers with ES6+ support
+- Mobile-responsive design
+- Touch-friendly interactions
