@@ -65,7 +65,7 @@
   - Integrate social sharing into ImageModal component
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 9. Implement responsive design and mobile optimization
+- [ ]\* 9. Implement responsive design and mobile optimization
 
   - Review and enhance existing CSS for better mobile responsiveness
   - Optimize touch targets for mobile devices (minimum 44px)
@@ -73,7 +73,7 @@
   - Enhance modal and navigation for mobile devices
   - _Requirements: 6.1, 6.2, 6.5_
 
-- [ ] 10. Add performance optimizations
+- [ ]\* 10. Add performance optimizations
 
   - Implement code splitting for optimal bundle loading
   - Add lazy loading for images and thumbnails

@@ -169,6 +169,16 @@ This works with any static web server without requiring server-side configuratio
 Kiro almost managed this one in the first attempt, but the URLs used in shared links used the old host routing scheme.
 It was a very quick fix however, to add `/#` in front of the URL to fix that. Didn't require Kiro's help.
 
+#### Skipped tasks
+
+After running "Implement responsive design and mobile optimization" there were no noticeable improvements in the UI, and
+an annoying bug had been introduced in the desktop UI that made the layout bounce when using the navigation buttons.
+
+After running "Add performance optimizations", the amount of code almost doubled with no noticeable effect on the load
+times. The image lazy loading had no visible effect even when simulating 4G speeds.
+
+In both cases, I reverted the changes and marked the tasks as optional.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
