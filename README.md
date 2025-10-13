@@ -98,6 +98,11 @@ making a huge mess, but it seems to work.
 
 [^2]: ... easily restored from Git.
 
+#### Implement database service layer
+
+This created some utilities for reading from SQLite, but it's hard to tell if they will work at a glance, so I leave it
+as-is for now, and proceed to the next tasks.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
