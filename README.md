@@ -331,6 +331,84 @@ The MapContainer component integrates Google Maps to display geo-tagged images a
 - Mobile-responsive design
 - Touch-friendly interactions
 
+## Build and Deployment
+
+The application is configured for production deployment to static hosting providers.
+
+### Build Commands
+
+```bash
+# Development build
+npm run build
+
+# Production build with validation
+npm run build:production
+
+# GitHub Pages build (with base path)
+npm run build:github
+
+# Validate build output
+npm run build:validate
+
+# Validate deployment requirements
+npm run deploy:validate
+```
+
+### Deployment Structure
+
+After building, the `dist/` directory contains:
+
+```
+dist/
+├── index.html              # Main HTML file
+├── assets/                 # Built JS/CSS assets
+│   ├── css/
+│   └── js/
+├── images/                 # Image files and thumbnails
+├── images.db              # SQLite database
+├── .htaccess              # Apache configuration
+└── vite.svg               # Favicon
+```
+
+### Supported Hosting Providers
+
+The application includes configuration files for popular static hosting providers:
+
+- **Netlify**: `netlify.toml` with redirects and caching headers
+- **Vercel**: `vercel.json` with SPA routing and optimization
+- **GitHub Pages**: `.github/workflows/deploy.yml` for automated deployment
+- **Apache**: `.htaccess` for client-side routing and caching
+
+### Environment Variables
+
+Set the following environment variable for production:
+
+```bash
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+```
+
+### Quick Deployment
+
+1. **Prepare your environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Google Maps API key
+   ```
+
+2. **Generate image database**:
+   ```bash
+   python extract_exif.py path/to/your/images
+   ```
+
+3. **Build for production**:
+   ```bash
+   npm run build:production
+   ```
+
+4. **Deploy**: Upload the `dist/` folder to your hosting provider
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 <!--
 TODO:
 * fix spyro -> spyo
