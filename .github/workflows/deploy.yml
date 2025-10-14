@@ -17,7 +17,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'
         cache: 'npm'
         
     - name: Install dependencies
@@ -26,7 +26,7 @@ jobs:
     - name: Setup Python for EXIF extraction
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         
     - name: Install Python dependencies
       run: |
@@ -34,7 +34,11 @@ jobs:
         pip install -r requirements.txt
         
     - name: Generate image database
-      run: python extract_exif.py public/images
+      run: |
+        images=$(mktmp -d)
+        # TODO: download images from S3 to $images?
+        cd public
+        python ../extract_exif.py "$images"
       
     - name: Build application
       run: npm run build:github

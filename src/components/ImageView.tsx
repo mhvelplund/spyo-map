@@ -143,7 +143,7 @@ const ImageView: React.FC = () => {
   return (
     <div className="main-map-view">
       <header className="map-header">
-        <h1>Spyro Map</h1>
+        <h1>Spyo Map</h1>
         <div className="image-count">
           {images.length} geo-tagged images
         </div>

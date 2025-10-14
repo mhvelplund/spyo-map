@@ -51,7 +51,7 @@ export const isImageUrl = (): boolean => {
 export const generateShareUrls = (imageId: string, title?: string) => {
   const imageUrl = generateImageUrl(imageId);
   const encodedUrl = encodeURIComponent(imageUrl);
-  const encodedTitle = encodeURIComponent(title || 'Check out this photo on Spyro Map');
+  const encodedTitle = encodeURIComponent(title || 'Check out this photo on Spyo Map');
 
   return {
     direct: imageUrl,

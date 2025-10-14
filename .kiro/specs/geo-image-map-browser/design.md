@@ -2,7 +2,7 @@
 
 ## Overview
 
-The spyro-map is a React/TypeScript web application that displays geo-tagged images on an interactive Google Maps
+The spyo-map is a React/TypeScript web application that displays geo-tagged images on an interactive Google Maps
 interface. The system consists of two main components: a Python data preparation script and a React web application. The
 Python script processes image folders to extract EXIF data into an SQLite database, while the React app provides an
 interactive map interface for browsing and viewing images.

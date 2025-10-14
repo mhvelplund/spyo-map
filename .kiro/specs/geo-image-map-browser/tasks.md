@@ -65,7 +65,16 @@
   - Integrate social sharing into ImageModal component
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ]\* 9. Implement responsive design and mobile optimization
+- [x] 9. Configure build and deployment setup
+
+  - Set up Vite build configuration for production optimization
+  - Create deployment structure compatible with static web hosting
+  - Configure environment variables for Google Maps API key
+  - Ensure client-side routing works with static hosting
+  - Create deployment utilities for copying required files
+  - _Requirements: 7.1, 7.4_
+
+- [ ]* 10. Implement responsive design and mobile optimization
 
   - Review and enhance existing CSS for better mobile responsiveness
   - Optimize touch targets for mobile devices (minimum 44px)
@@ -73,7 +82,7 @@
   - Enhance modal and navigation for mobile devices
   - _Requirements: 6.1, 6.2, 6.5_
 
-- [ ]\* 10. Add performance optimizations
+- [ ]* 11. Add performance optimizations
 
   - Implement code splitting for optimal bundle loading
   - Add lazy loading for images and thumbnails
@@ -81,15 +90,7 @@
   - Optimize map rendering with viewport culling and debounced updates
   - _Requirements: 8.1, 8.2, 8.3, 8.5_
 
-- [x] 11. Configure build and deployment setup
-
-  - Set up Vite build configuration for production optimization
-  - Create deployment structure compatible with static web hosting
-  - Configure environment variables for Google Maps API key
-  - Ensure client-side routing works with static hosting
-  - _Requirements: 7.1, 7.4_
-
-- [ ]\* 12. Add comprehensive error handling
+- [ ]* 12. Add comprehensive error handling
 
   - Implement error boundaries for React components
   - Add graceful handling for database loading failures
@@ -97,7 +98,7 @@
   - Add retry logic for network failures
   - _Requirements: 1.5, 2.1, 3.5_
 
-- [ ]\* 13. Write unit tests for core functionality
+- [ ]* 13. Write unit tests for core functionality
   - Test database service methods and data transformation
   - Test distance calculation utilities
   - Test component rendering and user interactions

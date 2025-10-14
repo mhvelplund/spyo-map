@@ -1,4 +1,4 @@
-# Spyro Map
+# Spyo Map
 
 This is a browser-based web application that displays geo-tagged images on an interactive map. Users can browse images
 by location, view them in a modal lightbox, navigate between nearby images, and share them on social media. The
@@ -42,7 +42,7 @@ for a tool to generate an SQLite database from a folder with the data in it.
 
 After reading the proposed design document I was mostly happy, but since I don't care about focal length and camera
 types, and I do care about any optional additional GPS data, I updated the design to not store that information.
-Finally, I renamed the app from "geo-image-map-browser" to "spyro-map".
+Finally, I renamed the app from "geo-image-map-browser" to "spyo-map".
 
 Whenever I edited Kiro's initial drafts of a file, I told Kiro about it in the interactive chat. Not certain that is
 important, but in earlier work, Kiro seemed to get confused if I edited fields without saying so. It's possible this is
@@ -179,6 +179,18 @@ times. The image lazy loading had no visible effect even when simulating 4G spee
 
 In both cases, I reverted the changes and marked the tasks as optional.
 
+#### Configure build and deployment setup
+
+This was the final step I ran. It added a deployment document with instructions, a lot of metadata headers to the HTML
+that I'm not familiar with, and config files for deployment technologies with GitHub Actions, Netlify and Vercel.
+
+I removed Vercel and Netlify stuff, but the plan was always to run the site as a GH page, so I only slightly modify the
+GitHub workflow. Among other things, it used ancient versions of Node.js and Python, so I update that. It also assumes
+that the images to display are located in Git. For now the action will just have to fail.
+
+I notice that some of the code seems to contain windows path specific code which will probably cause problems for the GH
+workflow, but at this point I've spent 7 hours getting this far, and I don't care any more.
+
 ## EXIF Extraction Script
 
 This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
@@ -190,19 +202,19 @@ This Python script extracts GPS and EXIF metadata from images and creates an SQL
 
 ### Installation
 
-```bash
+```shell
 pip install -r requirements.txt
 ```
 
 ### Usage
 
-```bash
+```shell
 python extract_exif.py <path_to_image_folder>
 ```
 
 Example:
 
-```bash
+```shell
 python extract_exif.py ./photos
 ```
 
@@ -261,7 +273,7 @@ The MapContainer component integrates Google Maps to display geo-tagged images a
 
 2. **Configure Environment Variables**
 
-   ```bash
+   ```shell
    cp .env.example .env
    ```
 
@@ -272,7 +284,7 @@ The MapContainer component integrates Google Maps to display geo-tagged images a
    ```
 
 3. **Start Development Server**
-   ```bash
+   ```shell
    npm run dev
    ```
 
@@ -335,14 +347,43 @@ The MapContainer component integrates Google Maps to display geo-tagged images a
 
 The application is configured for production deployment to static hosting providers.
 
-### Build Commands
+### Environment Variables
 
-```bash
+Set the following environment variable for production:
+
+```shell
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+```
+
+### Quick Deployment
+
+1. **Prepare your environment**:
+   ```shell
+   cp .env.example .env
+   # Edit .env with your Google Maps API key
+   ```
+
+2. **Generate image database**:
+   ```shell
+   cd public
+   python ../extract_exif.py path/to/your/images
+   ```
+
+3. **Build for production**:
+   ```shell
+   npm run build:production
+   ```
+
+4. **Deploy**: Upload the `dist/` folder to your hosting provider
+
+### Other commands
+
+```shell
+# Start a local development server
+npm run dev
+
 # Development build
 npm run build
-
-# Production build with validation
-npm run build:production
 
 # GitHub Pages build (with base path)
 npm run build:github
@@ -370,47 +411,6 @@ dist/
 └── vite.svg               # Favicon
 ```
 
-### Supported Hosting Providers
-
-The application includes configuration files for popular static hosting providers:
-
-- **Netlify**: `netlify.toml` with redirects and caching headers
-- **Vercel**: `vercel.json` with SPA routing and optimization
-- **GitHub Pages**: `.github/workflows/deploy.yml` for automated deployment
-- **Apache**: `.htaccess` for client-side routing and caching
-
-### Environment Variables
-
-Set the following environment variable for production:
-
-```bash
-VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
-```
-
-### Quick Deployment
-
-1. **Prepare your environment**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your Google Maps API key
-   ```
-
-2. **Generate image database**:
-   ```bash
-   python extract_exif.py path/to/your/images
-   ```
-
-3. **Build for production**:
-   ```bash
-   npm run build:production
-   ```
-
-4. **Deploy**: Upload the `dist/` folder to your hosting provider
-
-For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
 <!--
-TODO:
-* fix spyro -> spyo
-* blur humans in pictures
+TODO: blur humans in pictures
 -->

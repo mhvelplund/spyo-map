@@ -1,12 +1,12 @@
 {
-  "name": "spyro-map",
+  "name": "spyo-map",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node -e \"import('./deploy.config.js').then(m => m.copyRequiredFiles())\"",
-    "build:github": "tsc -b && vite build --base=/spyro-map/ && node -e \"import('./deploy.config.js').then(m => m.copyRequiredFiles())\"",
+    "build:github": "tsc -b && vite build --base=/spyo-map/ && node -e \"import('./deploy.config.js').then(m => m.copyRequiredFiles())\"",
     "build:production": "node -e \"import('./deploy.config.js').then(m => m.validateDeployment())\" && npm run build && node scripts/validate-build.js",
     "build:validate": "node scripts/validate-build.js",
     "lint": "eslint .",

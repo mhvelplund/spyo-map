@@ -1,13 +1,13 @@
 /**
- * Deployment Configuration for Spyro Map
+ * Deployment Configuration for Spyo Map
  *
  * This file contains configuration and utilities for deploying the application
  * to various static hosting providers.
  */
 
-import { execSync } from "child_process";
-import { copyFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { execSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 const DEPLOYMENT_CONFIG = {
 	// Required files that must be copied to dist
@@ -17,25 +17,9 @@ const DEPLOYMENT_CONFIG = {
 	providers: {
 		// GitHub Pages
 		githubPages: {
-			base: "/spyro-map/",
+			base: "/spyo-map/",
 			buildCommand: "npm run build:github",
 			deployCommand: "gh-pages -d dist",
-		},
-
-		// Netlify
-		netlify: {
-			base: "/",
-			buildCommand: "npm run build",
-			redirects: [
-				"/* /index.html 200", // SPA fallback for client-side routing
-			],
-		},
-
-		// Vercel
-		vercel: {
-			base: "/",
-			buildCommand: "npm run build",
-			rewrites: [{ source: "/(.*)", destination: "/index.html" }],
 		},
 
 		// Generic static hosting
