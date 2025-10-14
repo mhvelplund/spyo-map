@@ -5,9 +5,9 @@
  * to various static hosting providers.
  */
 
-import { execSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+var shell = require('shelljs');
 
 const DEPLOYMENT_CONFIG = {
 	// Required files that must be copied to dist
@@ -53,9 +53,7 @@ export function copyRequiredFiles() {
 
 	// Copy images directory
 	if (existsSync("public/images")) {
-		execSync('xcopy "public\\images" "dist\\images" /E /I /Y', {
-			stdio: "inherit",
-		});
+		shell.cp("-r","public/images", "dist/images")
 		console.log("✓ Copied images directory to dist/");
 	} else {
 		console.warn("⚠ Warning: public/images directory not found.");
