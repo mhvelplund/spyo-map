@@ -14,7 +14,8 @@ attempt at creating a full app with Kiro, but it was the first _partially_ succe
 
 ## EXIF Extraction Script
 
-This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map browser.
+This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map
+browser.
 
 ### Requirements
 
@@ -24,19 +25,19 @@ This Python script extracts GPS and EXIF metadata from images and creates an SQL
 ### Installation
 
 ```shell
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Usage
 
 ```shell
-python extract_exif.py <path_to_image_folder>
+uv run python extract_exif.py <path_to_image_folder>
 ```
 
 Example:
 
 ```shell
-python extract_exif.py ./photos
+uv run python extract_exif.py ./photos
 ```
 
 ### What it does
