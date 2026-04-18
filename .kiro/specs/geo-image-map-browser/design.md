@@ -19,7 +19,7 @@ graph TB
     D --> E[Google Maps API]
     D --> F[Image Modal]
     D --> G[Social Sharing]
-    
+
     subgraph "Static Web Host"
         C
         D
@@ -35,17 +35,17 @@ graph TB
     A[App Component] --> B[Map Container]
     A --> C[Image Modal]
     A --> D[Router]
-    
+
     B --> E[Google Maps]
     B --> F[Image Markers]
-    
+
     C --> G[Image Viewer]
     C --> H[Navigation Controls]
     C --> I[Social Share Buttons]
-    
+
     J[Database Service] --> K[SQLite Database]
     L[Image Service] --> M[Thumbnail Generator]
-    
+
     A --> J
     A --> L
 ```

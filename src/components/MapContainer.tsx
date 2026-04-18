@@ -31,7 +31,7 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
     const defaultCenter = { lat: 40.7128, lng: -74.0060 }; // New York City
 
     // Calculate center from images if available
-    const center = images.length > 0 
+    const center = images.length > 0
       ? {
           lat: images.reduce((sum, img) => sum + img.latitude, 0) / images.length,
           lng: images.reduce((sum, img) => sum + img.longitude, 0) / images.length
@@ -81,7 +81,7 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
       border-radius: 50%;
       object-fit: cover;
     `;
-    
+
     // Handle image load error
     thumbnailImg.onerror = () => {
       markerContent.innerHTML = `
@@ -161,7 +161,7 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
               cursor: pointer;
             `;
             clusterContent.textContent = count.toString();
-            
+
             return new google.maps.marker.AdvancedMarkerElement({
               position,
               content: clusterContent
@@ -185,7 +185,7 @@ const GoogleMap: React.FC<GoogleMapProps> = ({ images, selectedImageId, onImageS
       if (position) {
         mapInstanceRef.current.panTo(position);
         mapInstanceRef.current.setZoom(Math.max(mapInstanceRef.current.getZoom() || 10, 15));
-        
+
         // Add visual highlight to the selected marker
         const markerContent = selectedMarker.content as HTMLElement;
         if (markerContent) {
@@ -224,10 +224,10 @@ const MapContainer: React.FC<MapContainerProps> = ({ images, selectedImageId, on
         );
       case Status.SUCCESS:
         return (
-          <GoogleMap 
-            images={images} 
-            selectedImageId={selectedImageId} 
-            onImageSelect={onImageSelect} 
+          <GoogleMap
+            images={images}
+            selectedImageId={selectedImageId}
+            onImageSelect={onImageSelect}
           />
         );
       default:
@@ -254,7 +254,7 @@ const MapContainer: React.FC<MapContainerProps> = ({ images, selectedImageId, on
 
   return (
     <div className="map-container">
-      <Wrapper 
+      <Wrapper
         apiKey={GOOGLE_MAPS_API_KEY}
         render={renderMap}
         libraries={['marker']}
