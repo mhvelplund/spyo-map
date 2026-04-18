@@ -49,14 +49,14 @@ export class DatabaseService {
    */
   async loadImages(): Promise<ImageRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.db) {
       throw new Error('Database not initialized');
     }
 
     try {
       const stmt = this.db.prepare(`
-        SELECT 
+        SELECT
           id,
           latitude,
           longitude,
@@ -96,14 +96,14 @@ export class DatabaseService {
    */
   async getImageById(id: string): Promise<ImageRecord | null> {
     await this.ensureInitialized();
-    
+
     if (!this.db) {
       throw new Error('Database not initialized');
     }
 
     try {
       const stmt = this.db.prepare(`
-        SELECT 
+        SELECT
           id,
           latitude,
           longitude,
@@ -124,13 +124,13 @@ export class DatabaseService {
       `);
 
       stmt.bind([id]);
-      
+
       if (stmt.step()) {
         const row = stmt.getAsObject();
         stmt.free();
         return this.mapRowToImageRecord(row);
       }
-      
+
       stmt.free();
       return null;
     } catch (error) {
@@ -144,14 +144,14 @@ export class DatabaseService {
    */
   async getNearbyImages(lat: number, lng: number, radiusKm: number = 1): Promise<ImageRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.db) {
       throw new Error('Database not initialized');
     }
 
     try {
       const stmt = this.db.prepare(`
-        SELECT 
+        SELECT
           id,
           latitude,
           longitude,
@@ -175,13 +175,13 @@ export class DatabaseService {
       while (stmt.step()) {
         const row = stmt.getAsObject();
         const image = this.mapRowToImageRecord(row);
-        
+
         // Calculate distance using haversine formula
         const distance = calculateHaversineDistance(
-          lat, lng, 
+          lat, lng,
           image.latitude, image.longitude
         );
-        
+
         if (distance <= radiusKm) {
           images.push(image);
         }

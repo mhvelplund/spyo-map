@@ -16,7 +16,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
     const fullUrl = getFullUrl();
     const text = imageTitle ? `Check out this photo: ${imageTitle}` : 'Check out this photo!';
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fullUrl)}`;
-    
+
     window.open(twitterUrl, '_blank', 'width=550,height=420,scrollbars=yes,resizable=yes');
   }, [getFullUrl, imageTitle]);
 
@@ -24,7 +24,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
   const handleFacebookShare = useCallback(() => {
     const fullUrl = getFullUrl();
     const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`;
-    
+
     window.open(facebookUrl, '_blank', 'width=580,height=296,scrollbars=yes,resizable=yes');
   }, [getFullUrl]);
 
@@ -34,7 +34,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
       const fullUrl = getFullUrl();
       await navigator.clipboard.writeText(fullUrl);
       setCopySuccess(true);
-      
+
       // Reset success message after 2 seconds
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (error) {
@@ -68,7 +68,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
           <i className="fab fa-twitter" aria-hidden="true"></i>
           <span>Twitter</span>
         </button>
-        
+
         <button
           className="social-share-button facebook"
           onClick={handleFacebookShare}
@@ -78,7 +78,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
           <i className="fab fa-facebook-f" aria-hidden="true"></i>
           <span>Facebook</span>
         </button>
-        
+
         <button
           className="social-share-button instagram"
           onClick={handleInstagramShare}
@@ -89,7 +89,7 @@ const SocialShare: React.FC<SocialShareProps> = ({ imageUrl, imageTitle }) => {
           <span>{copySuccess ? 'Copied!' : 'Copy Link'}</span>
         </button>
       </div>
-      
+
       {copySuccess && (
         <output className="copy-success-message" aria-live="polite">
           Link copied to clipboard! You can now paste it in Instagram.

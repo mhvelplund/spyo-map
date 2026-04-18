@@ -97,13 +97,13 @@
   .social-share-buttons {
     flex-direction: column;
   }
-  
+
   .social-share-button {
     justify-content: center;
     width: 100%;
     padding: 0.75rem 1rem;
   }
-  
+
   .social-share-button span {
     font-size: 1rem;
   }
@@ -114,7 +114,7 @@
   .social-share-button {
     border: 2px solid currentColor;
   }
-  
+
   .copy-success-message {
     border-width: 2px;
   }
@@ -125,7 +125,7 @@
   .social-share-button {
     transition: none;
   }
-  
+
   .social-share-button:hover {
     transform: none;
   }

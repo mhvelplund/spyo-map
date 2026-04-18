@@ -12,9 +12,9 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const R = 6371; // Earth's radius in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
+  const a =
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
@@ -23,7 +23,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 const ImageView: React.FC = () => {
   const { imageId } = useParams<{ imageId: string }>();
   const navigate = useNavigate();
-  
+
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [selectedImage, setSelectedImage] = useState<ImageRecord | null>(null);
   const [nearbyImages, setNearbyImages] = useState<ImageRecord[]>([]);
@@ -35,7 +35,7 @@ const ImageView: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        
+
 
         // Load all images
         const loadedImages = await databaseService.loadImages();
@@ -46,7 +46,7 @@ const ImageView: React.FC = () => {
           // Clean the image ID to handle any path issues
           const cleanImageId = extractImageId(imageId);
           const image = loadedImages.find(img => img.id === cleanImageId);
-          
+
           if (!image) {
             // Image not found, redirect to main map
             navigate('/', { replace: true });
@@ -62,7 +62,7 @@ const ImageView: React.FC = () => {
             }))
             .filter(item => item.distance <= 1) // Within 1km
             .sort((a, b) => a.distance - b.distance);
-          
+
           // Extract just the images for final array
           const nearby = nearbyWithDistance.map(item => item.image);
 
@@ -148,7 +148,7 @@ const ImageView: React.FC = () => {
           {images.length} geo-tagged images
         </div>
       </header>
-      
+
       <div className="map-wrapper">
         <MapContainer
           images={images}
