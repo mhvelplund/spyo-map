@@ -105,6 +105,7 @@ export default config;
 - Assert `queryAllImages(db, 'http://base')` returns all rows mapped correctly.
 - Assert `queryImageById(db, id, 'http://base')` returns correct record / `null` for unknown ID.
 - Assert `queryNearbyImages(db, id, lat, lon, 1, 'http://base')` filters by radius and sorts by distance.
+- Assert `queryNearbyImages` excludes the source image itself from results.
 
 **`tests/routes.test.ts`** — API endpoints via Fastify `inject()`:
 - Mock the `database` service module with `jest.mock`.
@@ -136,6 +137,7 @@ export default config;
 - `getImageById(id)` calls `GET /api/images/:id` → parses record on 200, returns `null` on 404.
 - `getNearbyImages(id, radius)` calls `GET /api/images/:id/nearby?radius=...` → parses array.
 - HTTP error (500) on `getAllImages`/`getImageById`/`getNearbyImages` → throws `Error`.
+- Network failure (`fetch` rejects with a `TypeError`) → error propagates to caller.
 
 ## Root Workspace Integration
 
