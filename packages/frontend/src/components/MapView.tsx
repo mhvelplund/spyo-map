@@ -18,6 +18,10 @@ interface MarkerLayerProps {
   onImageSelect: (imageId: string) => void;
 }
 
+interface MapViewPropsExtended extends MapViewProps {
+  onMapReady?: (map: L.Map) => void;
+}
+
 const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageId, onImageSelect }) => {
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -74,19 +78,24 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageI
     };
   }, [map, images, selectedImageId, onImageSelect]);
 
-  // Pan to selected image
-  useEffect(() => {
-    if (!selectedImageId) return;
-    const image = images.find(img => img.id === selectedImageId);
-    if (image) {
-      map.setView([image.latitude, image.longitude], Math.max(map.getZoom(), 15));
-    }
-  }, [map, selectedImageId, images]);
-
   return null;
 };
 
-const MapView: React.FC<MapViewProps> = ({ images, selectedImageId, onImageSelect }) => {
+interface MapReadyCaptureProps {
+  onReady?: (map: L.Map) => void;
+}
+
+const MapReadyCapture: React.FC<MapReadyCaptureProps> = ({ onReady }) => {
+  const map = useMap();
+  // Depend only on `map` — fire exactly once when the Leaflet map instance mounts.
+  // `onReady` is intentionally excluded: MapPage wraps it in useCallback([]) so the
+  // reference is stable, but excluding it prevents re-firing if a parent re-render
+  // passes a new function reference before the callback is fully stabilised.
+  useEffect(() => { onReady?.(map); }, [map]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+};
+
+const MapView: React.FC<MapViewPropsExtended> = ({ images, selectedImageId, onImageSelect, onMapReady }) => {
   const initialCenter: [number, number] = images.length > 0
     ? [
         images.reduce((sum, img) => sum + img.latitude, 0) / images.length,
@@ -112,6 +121,7 @@ const MapView: React.FC<MapViewProps> = ({ images, selectedImageId, onImageSelec
           selectedImageId={selectedImageId}
           onImageSelect={onImageSelect}
         />
+        <MapReadyCapture onReady={onMapReady} />
       </MapContainer>
     </div>
   );
