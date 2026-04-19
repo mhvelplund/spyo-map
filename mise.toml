@@ -1,3 +1,6 @@
 [tools]
-python = "3.14"
-uv = "latest"
+node = "lts"
+pre-commit = "latest"
+
+[shell_alias]
+dc = "docker compose"

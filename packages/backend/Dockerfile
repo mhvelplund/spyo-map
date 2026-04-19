@@ -18,6 +18,6 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 COPY --from=builder /app/packages/backend/dist ./dist
-COPY --from=builder /app/packages/backend/node_modules ./node_modules
+COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3001
 CMD ["node", "dist/server.js"]
