@@ -9,7 +9,22 @@ const config = {
   },
   testMatch: ['<rootDir>/tests/**/*.test.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: 'tsconfig.test.json' }],
+    '^.+\\.tsx?$': ['ts-jest', {
+      useESM: true,
+      isolatedModules: true,
+      tsconfig: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'bundler',
+        strict: true,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        verbatimModuleSyntax: true,
+        noUnusedLocals: false,
+        noUnusedParameters: false,
+        isolatedModules: true
+      }
+    }],
   },
 };
 
