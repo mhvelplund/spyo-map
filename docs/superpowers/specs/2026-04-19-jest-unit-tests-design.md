@@ -37,16 +37,27 @@ The v2 monorepo (`feat/v2-architecture`) has no automated tests. Regressions can
 
 ### 2. Add testable database query functions (backend)
 
-The backend database module holds a module-level `db` reference set only by `initDatabase()` (which requires live S3). To make query functions testable without S3, refactor `getAllImages`, `getImageById`, `getNearbyImages`, and `rowToRecord` to accept a `BetterSqlite3.Database` argument. The exported wrapper functions (`getAllImages()` etc.) will call the private helpers with the module-level `db`. Tests pass an in-memory SQLite instance directly.
+The backend database module holds a module-level `db` reference set only by `initDatabase()` (which requires live S3). To make query functions testable without S3, extract the query logic into internal helpers that accept `(db: Database, baseUrl: string)` arguments. The public wrappers call them using the module-level `db` and `config.imagesBaseUrl`. `rowToRecord` also receives `baseUrl` as a parameter instead of reading it from `config`.
+
+All four internal helpers are exported (no underscore convention — just export them):
 
 ```ts
-// internal (exported for tests):
-export function _getAllImages(db: Database): ImageRecord[] { ... }
-// public wrapper:
-export function getAllImages(): ImageRecord[] { return _getAllImages(getDb()); }
+// packages/backend/src/services/database.ts
+
+export function rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord { ... }
+export function queryAllImages(db: Database, baseUrl: string): ImageRecord[] { ... }
+export function queryImageById(db: Database, id: string, baseUrl: string): ImageRecord | null { ... }
+export function queryNearbyImages(db: Database, id: string, lat: number, lon: number, radiusKm: number, baseUrl: string): ImageRecord[] { ... }
+
+// Public API (unchanged signatures):
+export function getAllImages(): ImageRecord[] { return queryAllImages(getDb(), config.imagesBaseUrl); }
+export function getImageById(id: string): ImageRecord | null { return queryImageById(getDb(), id, config.imagesBaseUrl); }
+export function getNearbyImages(id: string, lat: number, lon: number, radiusKm: number): ImageRecord[] {
+  return queryNearbyImages(getDb(), id, lat, lon, radiusKm, config.imagesBaseUrl);
+}
 ```
 
-Alternatively, use underscore-prefixed or `@internal` JSDoc convention. The pattern must be consistent.
+Tests call `queryAllImages`, `queryImageById`, `queryNearbyImages`, and `rowToRecord` directly with an in-memory DB and a test base URL string.
 
 ## Per-Package Jest Config
 
@@ -87,12 +98,13 @@ export default config;
 - Known point pairs (e.g., London–Paris ≈ 340 km ±5%)
 - Antipodal points → ≈ 20,015 km
 
-**`tests/database.test.ts`** — `_getAllImages`, `_getImageById`, `_getNearbyImages`:
-- Create a real SQLite `:memory:` database using the same schema as the extractor (`openDatabase(':memory:')`).
+**`tests/database.test.ts`** — `queryAllImages`, `queryImageById`, `queryNearbyImages`, `rowToRecord`:
+- Create a real SQLite `:memory:` database using the extractor's `openDatabase(':memory:')` helper (cross-package import via workspace dep, or inline schema creation).
 - Insert fixture rows directly.
-- Assert `_getAllImages(db)` returns correct `ImageRecord` shape with constructed URLs (pass a mock `imagesBaseUrl`).
-- Assert `_getImageById(db, id, baseUrl)` returns correct record / `null` for unknown ID.
-- Assert `_getNearbyImages(db, id, lat, lon, radius, baseUrl)` filters by radius and sorts by distance.
+- Assert `rowToRecord(row, 'http://base')` returns correct `ImageRecord` shape with `imageUrl`/`thumbnailUrl` constructed from the base URL.
+- Assert `queryAllImages(db, 'http://base')` returns all rows mapped correctly.
+- Assert `queryImageById(db, id, 'http://base')` returns correct record / `null` for unknown ID.
+- Assert `queryNearbyImages(db, id, lat, lon, 1, 'http://base')` filters by radius and sorts by distance.
 
 **`tests/routes.test.ts`** — API endpoints via Fastify `inject()`:
 - Mock the `database` service module with `jest.mock`.
@@ -118,7 +130,7 @@ export default config;
 ### `packages/frontend`
 
 **`tests/ApiClient.test.ts`** — REST client (`getAllImages`, `getImageById`, `getNearbyImages`):
-- `import.meta.env` is Vite-only and undefined in Node/Jest. Add a Jest `moduleNameMapper` entry: `'^.*/env$': '<rootDir>/tests/__mocks__/env.ts'` or use a `setupFiles` entry that defines `import.meta.env = { VITE_API_BASE_URL: '' }` globally. The frontend `jest.config.ts` must include this.
+- **`import.meta.env` fix:** Refactor `ApiClient.ts` to read the base URL from an injectable config module (`src/config.ts` exports `export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''`). In `jest.config.ts`, add a `moduleNameMapper` entry that maps `src/config.ts` to `tests/__mocks__/config.ts` (which exports `export const API_BASE_URL = ''`). This ensures `import.meta.env` only appears in `config.ts`, which is entirely replaced in tests — no Node ESM `import.meta` workarounds needed.
 - Mock global `fetch` using `jest.spyOn(global, 'fetch')`.
 - `getAllImages()` calls `GET /api/images` → parses response array.
 - `getImageById(id)` calls `GET /api/images/:id` → parses record on 200, returns `null` on 404.
