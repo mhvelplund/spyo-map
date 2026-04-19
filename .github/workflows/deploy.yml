@@ -2,55 +2,53 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Setup Python for EXIF extraction
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Generate image database
-      run: |
-        set -euo pipefail
-        images=$(mktemp -d)
-        curl https://www.swissarmyronin.dk/files/spyo_images.zip -o "$images/images.zip"
-        unzip "$images/images.zip" -d "$images"
-        cd public        
-        python ../extract_exif.py "$images"
-      
-    - name: Build application
-      run: npm run build:github
-      env:
-        VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-        
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
-        # cname: your-custom-domain.com  # Optional: replace with your domain
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Python for EXIF extraction
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.14"
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Generate image database
+        run: |
+          set -euo pipefail
+          images=$(mktemp -d)
+          curl https://www.swissarmyronin.dk/files/spyo_images.zip -o "$images/images.zip"
+          unzip "$images/images.zip" -d "$images"
+          cd public
+          uv run python ../extract_exif.py "$images"
+
+      - name: Build application
+        run: npm run build:github
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          # cname: your-custom-domain.com  # Optional: replace with your domain

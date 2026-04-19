@@ -17,7 +17,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
   // Handle escape key press
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!isOpen) return;
-    
+
     switch (event.key) {
       case 'Escape':
         onClose();
@@ -69,7 +69,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
   // Touch event handlers for swipe navigation
   const handleTouchStart = (event: React.TouchEvent) => {
     if (!nearbyImages.length || nearbyImages.length <= 1) return;
-    
+
     const touch = event.touches[0];
     setTouchStart({ x: touch.clientX, y: touch.clientY });
     setTouchEnd(null);
@@ -77,7 +77,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
   const handleTouchMove = (event: React.TouchEvent) => {
     if (!touchStart) return;
-    
+
     const touch = event.touches[0];
     setTouchEnd({ x: touch.clientX, y: touch.clientY });
   };
@@ -92,7 +92,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     const deltaX = touchStart.x - touchEnd.x;
     const deltaY = touchStart.y - touchEnd.y;
     const minSwipeDistance = 50;
-    
+
     // Only trigger swipe if horizontal movement is greater than vertical
     // and the swipe distance is sufficient
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
@@ -134,7 +134,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const imageTime = new Date(image.timestamp).toLocaleTimeString();
 
   return (
-    <div 
+    <div
       className="image-modal-overlay"
       onClick={handleBackdropClick}
       onKeyDown={handleBackdropKeyDown}
@@ -177,7 +177,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
         {/* Image container */}
         <div className="image-modal-content">
-          <div 
+          <div
             className="image-container"
             ref={imageContainerRef}
             onTouchStart={handleTouchStart}
@@ -219,9 +219,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 {nearbyImages.length} nearby images
               </div>
             )}
-            
+
             {/* Social sharing */}
-            <SocialShare 
+            <SocialShare
               imageUrl={`/#/image/${image.id}`}
               imageTitle={`Photo taken on ${imageDate} at ${imageTime}`}
             />
