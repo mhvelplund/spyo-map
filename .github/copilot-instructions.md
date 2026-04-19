@@ -11,10 +11,21 @@
 - `npm run build` builds the frontend (`packages/frontend/dist/`).
 - `npm run build --workspace=packages/backend` compiles the Fastify backend to `packages/backend/dist/`.
 - `npm run build --workspace=packages/extractor` compiles the extractor job to `packages/extractor/dist/`.
+- `npm test` runs all unit tests across all workspace packages.
+- `npm test --workspace=packages/backend` runs only the backend tests.
+- `npm test --workspace=packages/extractor` runs only the extractor tests.
+- `npm test --workspace=packages/frontend` runs only the frontend tests.
 - `docker compose up` starts MinIO + backend + frontend for local development.
 - `docker compose run --rm extractor` runs the extractor against the MinIO `raw/` folder.
 - `docker compose run --rm -e LOCAL_SOURCE_PATH=/photos -v /path/to/photos:/photos extractor` ingests from a local folder.
-- Automated tests are not configured yet.
+- Automated tests are in `packages/<pkg>/tests/`.
+
+## Testing requirements
+
+- **Before pushing a PR:** run `npm test` from the repo root. All tests must pass. Do not open a PR with failing tests.
+- **When adding new logic:** add or update the regression tests in `packages/<pkg>/tests/` as part of the same commit or PR. Do not merge code that adds logic without accompanying test coverage.
+- **Test framework:** Jest 29 + ts-jest (ESM mode). Run with `node --experimental-vm-modules`.
+- **Test location:** `packages/<pkg>/tests/**/*.test.ts`. Tests for a module live in the same package, not in a shared test folder.
 
 ## Planning
 
