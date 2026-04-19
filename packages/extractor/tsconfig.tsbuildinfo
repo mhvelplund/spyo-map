@@ -1,0 +1,1 @@
+{"root":["./src/config.ts","./src/database.ts","./src/extractor.ts","./src/index.ts","./src/processor.ts","./src/storage.ts"],"version":"5.9.3"}

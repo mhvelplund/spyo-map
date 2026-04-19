@@ -2,6 +2,7 @@ import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
   NoSuchKey,
@@ -61,6 +62,14 @@ export async function putObject(
       ContentType: contentType,
     }),
   );
+}
+
+export async function deleteObject(
+  s3: S3Client,
+  bucket: string,
+  key: string,
+): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 export async function listObjects(

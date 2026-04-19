@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { existsSync, unlinkSync } from 'node:fs';
 import { S3Client } from '@aws-sdk/client-s3';
 import type { Config } from './config.js';
-import { getObject, putObject, listObjects } from './storage.js';
+import { getObject, putObject, listObjects, deleteObject } from './storage.js';
 import { extractExif, processImage } from './processor.js';
 import { openDatabase, imageExists, insertImage, copyDatabase } from './database.js';
 
@@ -70,13 +70,40 @@ export async function runExtractor(config: Config, s3: S3Client): Promise<void> 
     if (config.localSourcePath) {
       await processLocalSource(config, s3, db);
     } else {
-      await processBucketSource(config, s3, db);
+      const keysToDelete = await processBucketSource(config, s3, db);
+
+      // Upload DB first so no data is lost if deletion fails
+      console.log('Uploading images.db to object storage...');
+      const { readFile: rf } = await import('node:fs/promises');
+      const dbBuffer = await rf(TMP_DB_PATH);
+      await putObject(s3, config.storageBucket, DB_KEY, dbBuffer, 'application/octet-stream');
+      console.log('images.db uploaded successfully.');
+
+      // Delete successfully-imported raw files
+      for (const key of keysToDelete) {
+        try {
+          await deleteObject(s3, config.storageBucket, key);
+          console.log(`Deleted raw file: ${key}`);
+        } catch (err) {
+          console.warn(`Warning: could not delete ${key} from raw/:`, err);
+        }
+      }
+
+      // Cleanup local tmp files
+      for (const path of [TMP_DB_PATH, LOCAL_DB_PATH]) {
+        if (existsSync(path)) {
+          unlinkSync(path);
+        }
+      }
+
+      console.log('Extractor complete.');
+      return;
     }
   } finally {
     db.close();
   }
 
-  // 7. Upload images.db.tmp as images.db
+  // 7. Upload images.db.tmp as images.db (local source path)
   console.log('Uploading images.db to object storage...');
   const { readFile: rf } = await import('node:fs/promises');
   const dbBuffer = await rf(TMP_DB_PATH);
@@ -152,7 +179,7 @@ async function processBucketSource(
   config: Config,
   s3: S3Client,
   db: ReturnType<typeof openDatabase>,
-): Promise<void> {
+): Promise<string[]> {
   console.log(`Scanning bucket ${config.storageBucket}/raw/ ...`);
   const objects = await listObjects(s3, config.storageBucket, 'raw/');
   const imageObjects = objects.filter((o) => {
@@ -163,6 +190,7 @@ async function processBucketSource(
 
   let processed = 0;
   let skipped = 0;
+  const keysToDelete: string[] = [];
 
   for (let i = 0; i < imageObjects.length; i++) {
     const obj = imageObjects[i]!;
@@ -174,6 +202,7 @@ async function processBucketSource(
     if (imageExists(db, id)) {
       console.log(`  Skipping (already processed).`);
       skipped++;
+      keysToDelete.push(obj.key);
       continue;
     }
 
@@ -201,10 +230,12 @@ async function processBucketSource(
       );
       insertImage(db, id, filename, exif);
       processed++;
+      keysToDelete.push(obj.key);
     } catch (err) {
       console.error(`  Error processing ${obj.key}:`, err);
     }
   }
 
   console.log(`Done: ${processed} processed, ${skipped} skipped.`);
+  return keysToDelete;
 }
