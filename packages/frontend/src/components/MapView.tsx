@@ -87,11 +87,11 @@ interface MapReadyCaptureProps {
 
 const MapReadyCapture: React.FC<MapReadyCaptureProps> = ({ onReady }) => {
   const map = useMap();
-  // Depend only on `map` — fire exactly once when the Leaflet map instance mounts.
-  // `onReady` is intentionally excluded: MapPage wraps it in useCallback([]) so the
-  // reference is stable, but excluding it prevents re-firing if a parent re-render
-  // passes a new function reference before the callback is fully stabilised.
-  useEffect(() => { onReady?.(map); }, [map]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  // Fire exactly once when the Leaflet map instance mounts.
+  // Using a ref for the callback avoids the caller-stability contract.
+  useEffect(() => { onReadyRef.current?.(map); }, [map]);
   return null;
 };
 
