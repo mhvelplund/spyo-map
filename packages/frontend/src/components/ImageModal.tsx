@@ -185,14 +185,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
             onTouchEnd={handleTouchEnd}
           >
             <img
-              src={image.path}
+              src={image.imageUrl}
               alt={`Taken on ${imageDate} at ${imageTime}`}
               className="modal-image"
               onError={(e) => {
                 // Fallback to thumbnail if full image fails to load
                 const target = e.target as HTMLImageElement;
-                if (target.src !== image.thumbnailPath) {
-                  target.src = image.thumbnailPath;
+                if (target.src !== image.thumbnailUrl) {
+                  target.src = image.thumbnailUrl;
                 }
               }}
             />

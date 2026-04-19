@@ -1,1 +1,0 @@
-export { DatabaseService, databaseService } from './DatabaseService';

@@ -21,11 +21,9 @@ export default defineConfig({
       output: {
         // Manual chunk splitting for better caching
         manualChunks: {
-          // Vendor libraries
           vendor: ['react', 'react-dom'],
-          maps: ['@googlemaps/react-wrapper', '@googlemaps/markerclusterer'],
+          leaflet: ['leaflet', 'react-leaflet'],
           router: ['react-router-dom'],
-          database: ['sql.js']
         },
 
         // Asset file naming for better caching
@@ -57,7 +55,10 @@ export default defineConfig({
   // Development server configuration
   server: {
     port: 3000,
-    open: true
+    open: true,
+    proxy: {
+      '/api': 'http://localhost:3001'
+    }
   },
 
   // Preview server configuration

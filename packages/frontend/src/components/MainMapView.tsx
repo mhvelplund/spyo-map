@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import MapContainer from "./MapContainer";
-import { databaseService } from "../services/DatabaseService";
+import MapView from "./MapView";
+import { apiClient } from "../services";
 import { extractImageId } from "../utils/urlUtils";
 import type { ImageRecord } from "../types";
 import "./MainMapView.css";
@@ -17,7 +17,7 @@ const MainMapView: React.FC = () => {
 			try {
 				setLoading(true);
 				setError(null);
-				const loadedImages = await databaseService.loadImages();
+				const loadedImages = await apiClient.getAllImages();
 				setImages(loadedImages);
 			} catch (err) {
 				console.error("Failed to load images:", err);
@@ -70,7 +70,7 @@ const MainMapView: React.FC = () => {
 			</header>
 
 			<div className="map-wrapper">
-				<MapContainer
+				<MapView
 					images={images}
 					selectedImageId={undefined}
 					onImageSelect={handleImageSelect}

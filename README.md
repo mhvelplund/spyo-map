@@ -1,10 +1,11 @@
 # Spyo Map
 
-This is a browser-based web application that displays geo-tagged images on an interactive map. Users can browse images
-by location, view them in a modal lightbox, navigate between nearby images, and share them on social media. The
-application is built as a stateless React/TypeScript web app that can be hosted on any static web server.
+A browser-based web application that displays geo-tagged images on an interactive map. Browse photos by location,
+view in a modal lightbox, navigate between nearby images, and share on social media.
 
-## Development
+Built with React + Leaflet (OpenStreetMap) frontend, a Fastify API backend, and MinIO/S3 object storage for images.
+
+## Development story
 
 This app was created by an old-fashioned developer using the dreaded vibe coding. It's a form physical log of my
 experiment. This app was created with [Kiro](https://kiro.dev/) using this initial prompt below. It is not my first
@@ -12,223 +13,138 @@ attempt at creating a full app with Kiro, but it was the first _partially_ succe
 
 **The process is described in the [blog post](https://www.swissarmyronin.dk/blog/kiro/).**
 
-## EXIF Extraction Script
+## Architecture
 
-This Python script extracts GPS and EXIF metadata from images and creates an SQLite database for the geo-image map
-browser.
-
-### Requirements
-
-- Python 3.11+
-- Pillow library for image processing
-
-### Installation
-
-```shell
-uv sync
+```
+Browser (React + Leaflet)
+  │
+  ├─ GET /api/images  ──▶  Fastify backend  ──▶  downloads images.db from S3/MinIO
+  │
+  └─ <img src="...">  ──▶  S3/MinIO (direct, no proxy)
+                              ├── raw/          ← drop photos here
+                              ├── images/       ← processed full-size
+                              │   └── thumbnails/
+                              └── images.db     ← written by extractor job
 ```
 
-### Usage
+The frontend never touches the object store directly except for loading images via `<img>` tags. Image metadata
+(coordinates, URLs) comes from the backend REST API. The backend downloads `images.db` from object storage at startup
+and refreshes it periodically.
+
+## Local development
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Node.js 22+](https://nodejs.org/) (for `npm run dev` hot-reload workflow)
+- [mise](https://mise.jdx.dev/) (optional, for tool version management)
+
+### Start all services
 
 ```shell
-uv run python extract_exif.py <path_to_image_folder>
+docker compose up
 ```
 
-Example:
+This starts:
+- **MinIO** at `http://localhost:9000` (API) and `http://localhost:9001` (web console)
+- **Backend** at `http://localhost:3001`
+- **Frontend** (nginx) at `http://localhost:80`
+
+MinIO credentials: `minioadmin` / `minioadmin`
+
+### Ingest photos
+
+Drop photos into the MinIO `raw/` folder via the web console (`http://localhost:9001`), then run the extractor:
 
 ```shell
-uv run python extract_exif.py ./photos
+docker compose run --rm extractor
 ```
 
-### What it does
-
-1. **Scans recursively** through the specified folder for supported image formats (JPG, JPEG, TIFF, TIF)
-2. **Extracts EXIF data** including GPS coordinates, altitude, speed, direction, and other location metadata
-3. **Creates folder structure** in web application root: `images/` and `images/thumbnails/`
-4. **Scales images** with GPS data to maximum 2048x2048 pixels while preserving aspect ratio
-5. **Creates optimized thumbnails** (200x200px) for web display
-6. **Generates SQLite database** (`images.db`) in web application root with comprehensive GPS fields
-7. **Skips images** without GPS data
-
-### Output
-
-- `images.db` - SQLite database containing image metadata (in web application root)
-- `images/` - Directory containing scaled images (max 2048x2048px) named by their database ID
-- `images/thumbnails/` - Directory containing optimized thumbnail images named by their database ID
-- Console output showing processing progress
-
-### Database Schema
-
-The generated SQLite database includes these fields:
-
-- `id` - Unique image identifier (used to derive file paths: `images/{id}.jpg` and `images/thumbnails/{id}.jpg`)
-- `latitude`, `longitude` - GPS coordinates
-- `timestamp` - Image capture time
-- `altitude`, `speed`, `img_direction` - Additional GPS metadata
-- Various reference fields for GPS data interpretation
-
-**Note:** Image and thumbnail paths are not stored in the database since they can be derived from the ID:
-
-- Scaled image: `images/{id}.jpg`
-- Thumbnail: `images/thumbnails/{id}.jpg`
-
-### Supported Image Formats
-
-- JPEG (.jpg, .jpeg)
-- TIFF (.tiff, .tif)
-
-Images without GPS metadata are automatically skipped.
-
-## Google Maps Integration Setup
-
-The MapContainer component integrates Google Maps to display geo-tagged images as interactive markers on a map.
-
-### Setup Instructions
-
-1. **Get a Google Maps API Key**
-
-   - Visit [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
-   - Enable the Maps JavaScript API
-   - Create credentials (API Key)
-   - Restrict the API key to your domain for security
-
-2. **Configure Environment Variables**
-
-   ```shell
-   cp .env.example .env
-   ```
-
-   Edit `.env` and add your API key:
-
-   ```
-   VITE_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
-   ```
-
-3. **Start Development Server**
-   ```shell
-   npm run dev
-   ```
-
-### Component Architecture
-
-#### MapContainer
-
-- Main wrapper component that handles Google Maps API loading
-- Manages error states and loading indicators
-- Provides fallback UI for API failures
-
-#### GoogleMap (Internal Component)
-
-- Handles map initialization and configuration
-- Creates custom markers with thumbnail previews using `AdvancedMarkerElement`
-- Implements marker clustering using `@googlemaps/markerclusterer`
-- Manages marker interactions and selections
-
-### Custom Features
-
-#### Thumbnail Markers
-
-- Each image appears as a circular marker with its thumbnail
-- HTML-based markers using AdvancedMarkerElement with white border for visibility
-- Optimized for performance with proper sizing and error handling
-
-#### Marker Clustering
-
-- Automatically groups nearby markers to reduce clutter
-- Custom cluster styling with blue circles and white text
-- Responsive clustering based on zoom level
-
-#### Map Styling
-
-- Uses Google Maps default styling (custom styles must be configured in Google Cloud Console when using mapId)
-- Optimized for image browsing experience with AdvancedMarkerElement
-- Note: Custom map styles cannot be applied via JavaScript when using a mapId
-
-### Error Handling
-
-- **API Key Missing**: Shows configuration instructions
-- **API Load Failure**: Provides retry functionality
-- **Network Issues**: Graceful degradation with error messages
-- **Database Errors**: Handled at the service layer
-
-### Performance Considerations
-
-- Markers are created only when needed
-- Efficient clustering reduces rendering overhead
-- Optimized SVG icons for fast loading
-- Proper cleanup of map resources
-
-### Browser Compatibility
-
-- Modern browsers with ES6+ support
-- Mobile-responsive design
-- Touch-friendly interactions
-
-## Build and Deployment
-
-The application is configured for production deployment to static hosting providers.
-
-### Environment Variables
-
-Set the following environment variable for production:
+To ingest from a local folder (e.g. an SD card):
 
 ```shell
-VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+docker compose run --rm -e LOCAL_SOURCE_PATH=/photos -v /path/to/photos:/photos extractor
 ```
 
-### Quick Deployment
+After the extractor finishes, the backend picks up the new `images.db` automatically within 30 seconds (or call
+`POST http://localhost:3001/api/reload` to reload immediately).
 
-1. **Prepare your environment**:
-   ```shell
-   cp .env.example .env
-   # Edit .env with your Google Maps API key
-   ```
-
-2. **Generate image database**:
-   ```shell
-   cd public
-   python ../extract_exif.py path/to/your/images
-   ```
-
-3. **Build for production**:
-   ```shell
-   npm run build:production
-   ```
-
-4. **Deploy**: Upload the `dist/` folder to your hosting provider
-
-### Other commands
+### Hot-reload frontend development
 
 ```shell
-# Start a local development server
+npm install
+npm run dev   # starts Vite dev server at http://localhost:3000, proxies /api to localhost:3001
+```
+
+## Monorepo structure
+
+```
+packages/
+├── shared/      # Shared TypeScript types (ImageRecord, etc.)
+├── frontend/    # React + Vite + Leaflet SPA
+├── backend/     # Fastify REST API server
+└── extractor/   # Image ingestion job (replaces extract_exif.py)
+```
+
+## Commands
+
+```shell
+# Install all workspace dependencies
+npm install
+
+# Frontend dev server (hot reload)
 npm run dev
 
-# Development build
+# Build frontend for production
 npm run build
 
-# GitHub Pages build (with base path)
-npm run build:github
+# Lint all packages
+npm run lint
 
-# Validate build output
-npm run build:validate
+# Build backend
+npm run build --workspace=packages/backend
 
-# Validate deployment requirements
-npm run deploy:validate
+# Build extractor
+npm run build --workspace=packages/extractor
 ```
 
-### Deployment Structure
+## Environment variables
 
-After building, the `dist/` directory contains:
+**Backend** (`packages/backend/`):
 
-```
-dist/
-├── index.html              # Main HTML file
-├── assets/                 # Built JS/CSS assets
-│   ├── css/
-│   └── js/
-├── images/                 # Image files and thumbnails
-├── images.db              # SQLite database
-├── .htaccess              # Apache configuration
-└── vite.svg               # Favicon
-```
+| Variable | Default | Description |
+|---|---|---|
+| `STORAGE_ENDPOINT` | — | S3/MinIO endpoint (e.g. `http://minio:9000`) |
+| `STORAGE_BUCKET` | — | Bucket name |
+| `STORAGE_ACCESS_KEY` | — | Access key ID |
+| `STORAGE_SECRET_KEY` | — | Secret access key |
+| `STORAGE_REGION` | `us-east-1` | AWS region (MinIO ignores this) |
+| `IMAGES_BASE_URL` | — | Public base URL for images (e.g. `http://localhost:9000/spyro-map`) |
+| `DB_REFRESH_INTERVAL_MS` | `300000` | DB re-download interval ms (`0` = startup only) |
+| `PORT` | `3001` | HTTP port |
+
+**Extractor** (`packages/extractor/`): same `STORAGE_*` vars plus:
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOCAL_SOURCE_PATH` | — | Read from local path instead of `raw/` in bucket |
+
+## Production deployment
+
+1. Push images to the `raw/` prefix of your S3 bucket
+2. Run the extractor as an ECS scheduled task (or one-off container)
+3. Deploy the backend container (ECS service, Fly.io, etc.) with `STORAGE_*` and `IMAGES_BASE_URL` env vars
+4. Build the frontend (`npm run build --workspace=packages/frontend`) and upload `packages/frontend/dist/` to S3/CDN
+5. Configure your CDN/load balancer to route `/api/*` to the backend
+
+The `raw/` prefix and `images.db` should remain private. Only `images/` and `images/thumbnails/` need public read.
+
+## API
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/images` | All images (with absolute `imageUrl` + `thumbnailUrl`) |
+| `GET` | `/api/images/:id` | Single image |
+| `GET` | `/api/images/:id/nearby?radius=1` | Nearby images within radius (km) |
+| `POST` | `/api/reload` | Re-download `images.db` from object storage |
+| `GET` | `/api/health` | `{ status: "ok" }` |

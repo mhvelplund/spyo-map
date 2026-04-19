@@ -1,100 +1,40 @@
 /**
- * Deployment Configuration for Spyo Map
+ * Deployment configuration for spyro-map v2.
  *
- * This file contains configuration and utilities for deploying the application
- * to various static hosting providers.
+ * In v2 the frontend is a static bundle served by nginx. Images and
+ * images.db live in S3/MinIO — there is nothing to copy into dist/.
+ * This file is kept for reference; actual deployment is handled via
+ * docker-compose (local) or ECS task definitions (production).
  */
 
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-var shell = require("shelljs");
-
-const DEPLOYMENT_CONFIG = {
-  // Required files that must be copied to dist
-  requiredFiles: ["public/images.db", "public/images/**/*"],
-
-  // Static hosting providers configuration
+export const DEPLOYMENT_CONFIG = {
   providers: {
-    // GitHub Pages
-    githubPages: {
-      base: "/spyo-map/",
-      buildCommand: "npm run build:github",
-      deployCommand: "gh-pages -d dist",
-    },
-
-    // Generic static hosting
+    // Static hosting — build packages/frontend then serve dist/ with nginx
     static: {
-      base: "/",
-      buildCommand: "npm run build",
+      base: '/',
+      buildCommand: 'npm run build --workspace=packages/frontend',
     },
   },
 };
 
 /**
- * Copy required files to dist directory after build
- */
-export function copyRequiredFiles() {
-  const distDir = "dist";
-
-  // Ensure dist directory exists
-  if (!existsSync(distDir)) {
-    mkdirSync(distDir, { recursive: true });
-  }
-
-  // Copy SQLite database
-  if (existsSync("public/images.db")) {
-    copyFileSync("public/images.db", join(distDir, "images.db"));
-    console.log("✓ Copied images.db to dist/");
-  } else {
-    console.warn(
-      "⚠ Warning: public/images.db not found. Run extract_exif.py first.",
-    );
-  }
-
-  // Copy images directory
-  if (existsSync("public/images")) {
-    shell.cp("-r", "public/images", "dist/images");
-    console.log("✓ Copied images directory to dist/");
-  } else {
-    console.warn("⚠ Warning: public/images directory not found.");
-  }
-
-  // Copy .htaccess for Apache hosting
-  if (existsSync("public/.htaccess")) {
-    copyFileSync("public/.htaccess", join(distDir, ".htaccess"));
-    console.log("✓ Copied .htaccess to dist/");
-  }
-}
-
-/**
- * Validate deployment requirements
+ * Validate that required environment variables are set before deployment.
+ * Run with: node -e "import('./deploy.config.js').then(m => m.validateDeployment())"
  */
 export function validateDeployment() {
   const errors = [];
 
-  // Check for required environment variables
-  if (!process.env.VITE_GOOGLE_MAPS_API_KEY) {
-    errors.push("VITE_GOOGLE_MAPS_API_KEY environment variable is required");
-  }
-
-  // Check for required files
-  if (!existsSync("public/images.db")) {
-    errors.push(
-      "public/images.db is required. Run extract_exif.py to generate it.",
-    );
-  }
-
-  if (!existsSync("public/images")) {
-    errors.push("public/images directory is required.");
+  if (!process.env.VITE_API_BASE_URL && !process.env.VITE_API_BASE_URL === undefined) {
+    // VITE_API_BASE_URL defaults to '' (same origin) — not strictly required
   }
 
   if (errors.length > 0) {
-    console.error("❌ Deployment validation failed:");
+    console.error('❌ Deployment validation failed:');
     errors.forEach((error) => console.error(`  - ${error}`));
     process.exit(1);
   }
 
-  console.log("✅ Deployment validation passed");
+  console.log('✅ Deployment validation passed');
 }
 
 export default DEPLOYMENT_CONFIG;
