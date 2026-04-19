@@ -2,202 +2,74 @@
 
 ## Overview
 
-The spyo-map is a React/TypeScript web application that displays geo-tagged images on an interactive Google Maps
-interface. The system consists of two main components: a Python data preparation script and a React web application. The
-Python script processes image folders to extract EXIF data into an SQLite database, while the React app provides an
-interactive map interface for browsing and viewing images.
+Spyro Map is a web application that displays geo-tagged images on an interactive map. Users can
+browse photos by location, view them in a modal lightbox, navigate between nearby images, and share
+on social media.
+
+The system consists of four cooperating components: a React + Leaflet frontend (static hosting),
+a Fastify REST API backend (Docker/ECS), an S3/MinIO object store (images + metadata), and a
+TypeScript extractor job that processes raw photos.
 
 ## Architecture
 
 ### High-Level Architecture
 
+```
+Browser (React + Leaflet)
+  │
+  ├─ GET /api/*  ──────────▶  Fastify backend (Docker/ECS)
+  │                               │
+  │                               ├─ downloads images.db from S3/MinIO at startup
+  │                               └─ refreshes every ~5 min (or on POST /api/reload)
+  │
+  └─ <img src="…">  ──────▶  S3/MinIO (direct, no backend proxy)
+                                  ├── raw/              ← drop source photos here
+                                  ├── images/           ← processed full-size (public read)
+                                  │   └── thumbnails/   ← thumbnails (public read)
+                                  └── images.db         ← written by extractor job
+```
+
 ```mermaid
 graph TB
-    A[Image Folder] --> B[Python EXIF Extractor]
-    B --> C[SQLite Database]
-    C --> D[React Web App]
-    D --> E[Google Maps API]
-    D --> F[Image Modal]
-    D --> G[Social Sharing]
-
-    subgraph "Static Web Host"
-        C
-        D
-        H[Image Files]
-        I[Thumbnails]
-    end
+    Browser["Browser (React + Leaflet)"] -->|GET /api/*| Backend["Fastify Backend"]
+    Browser -->|img src| ObjectStore["S3 / MinIO"]
+    Backend -->|download images.db| ObjectStore
+    Extractor["Extractor Job"] -->|read raw photos| ObjectStore
+    Extractor -->|write images + thumbnails + images.db| ObjectStore
 ```
 
 ### Component Architecture
 
 ```mermaid
 graph TB
-    A[App Component] --> B[Map Container]
-    A --> C[Image Modal]
-    A --> D[Router]
+    Router["AppRouter (HashRouter)"] --> MainMapView
+    Router --> ImageView
 
-    B --> E[Google Maps]
-    B --> F[Image Markers]
+    MainMapView --> MapView
+    MainMapView --> ApiClient
 
-    C --> G[Image Viewer]
-    C --> H[Navigation Controls]
-    C --> I[Social Share Buttons]
+    ImageView --> ImageModal
+    ImageView --> ApiClient
 
-    J[Database Service] --> K[SQLite Database]
-    L[Image Service] --> M[Thumbnail Generator]
+    MapView --> LeafletMap["Leaflet + react-leaflet"]
+    MapView --> MarkerCluster["leaflet.markercluster"]
 
-    A --> J
-    A --> L
+    ImageModal --> SocialShare
+```
+
+### Monorepo Layout
+
+```
+packages/
+├── shared/      # Shared TypeScript types (ImageRecord, GeoLocation, etc.)
+├── frontend/    # React + Vite + Leaflet SPA
+├── backend/     # Fastify REST API server
+└── extractor/   # Image ingestion job (TypeScript, runs as Docker container)
 ```
 
 ## Components and Interfaces
 
-### 1. Python EXIF Extractor (`extract_exif.py`)
-
-**Purpose:** Processes image folders to extract EXIF metadata and generate SQLite database
-
-**Key Functions:**
-- `scan_images(folder_path: str) -> List[ImageData]`
-- `extract_exif(image_path: str) -> Dict[str, Any]`
-- `create_database(images: List[ImageData], db_path: str) -> None`
-- `generate_thumbnails(image_path: str, thumbnail_dir: str) -> str`
-
-**Dependencies:**
-- `Pillow` for image processing and EXIF extraction
-- `sqlite3` for database operations
-- `os` and `pathlib` for file system operations
-
-### 2. Database Service (`src/services/DatabaseService.ts`)
-
-**Purpose:** Handles SQLite database queries and data transformation
-
-```typescript
-interface ImageRecord {
-  id: string;
-  path: string;
-  thumbnailPath: string;
-  latitude: number;
-  longitude: number;
-  timestamp: string;
-  latitudeRef?: string; // e.g.: North latitude
-  longitudeRef?: string; // e.g.: East longitude
-  altitudeRef?: string; // e.g.: Sea level
-  altitude?: number;
-  speedRef?: string; // e.g.: Kilometers per hour
-  speed?: number;
-  imgDirectionRef?: string; // e.g.: Magnetic direction
-  imgDirection?: number;
-  destBearingRef?: string; // e.g.: Magnetic direction
-  destBearing?: number;
-  hPositioningError?: number;
-}
-
-class DatabaseService {
-  async loadImages(): Promise<ImageRecord[]>
-  async getImageById(id: string): Promise<ImageRecord | null>
-  async getNearbyImages(lat: number, lng: number, radiusKm: number): Promise<ImageRecord[]>
-}
-```
-
-### 3. Map Container Component (`src/components/MapContainer.tsx`)
-
-**Purpose:** Manages Google Maps integration and image marker display
-
-```typescript
-interface MapContainerProps {
-  images: ImageRecord[];
-  selectedImageId?: string;
-  onImageSelect: (imageId: string) => void;
-}
-
-const MapContainer: React.FC<MapContainerProps>
-```
-
-**Key Features:**
-- Google Maps integration using `@googlemaps/react-wrapper`
-- Custom image markers with thumbnail previews
-- Marker clustering for dense areas
-- Map controls and zoom functionality
-
-### 4. Image Modal Component (`src/components/ImageModal.tsx`)
-
-**Purpose:** Displays full-size images with navigation and sharing controls
-
-```typescript
-interface ImageModalProps {
-  image: ImageRecord | null;
-  nearbyImages: ImageRecord[];
-  isOpen: boolean;
-  onClose: () => void;
-  onNavigate: (direction: 'prev' | 'next') => void;
-}
-
-const ImageModal: React.FC<ImageModalProps>
-```
-
-**Key Features:**
-- Full-screen image display with responsive sizing
-- Keyboard navigation (arrow keys, escape)
-- Touch/swipe support for mobile
-- Social sharing integration
-
-### 5. Social Share Component (`src/components/SocialShare.tsx`)
-
-**Purpose:** Provides social media sharing functionality
-
-```typescript
-interface SocialShareProps {
-  imageUrl: string;
-  imageTitle?: string;
-}
-
-const SocialShare: React.FC<SocialShareProps>
-```
-
-**Supported Platforms:**
-- Twitter/X with image URL and optional text
-- Facebook with Open Graph metadata
-- Instagram (copy link functionality)
-
-### 6. Router Configuration (`src/router/AppRouter.tsx`)
-
-**Purpose:** Handles client-side routing for image URLs
-
-```typescript
-// Route structure:
-// / - Main map view
-// /image/:imageId - Direct image access
-// /location/:lat/:lng - Location-based view
-```
-
-## Data Models
-
-### Image Database Schema
-
-```sql
-CREATE TABLE images (
-    id TEXT PRIMARY KEY,
-    latitude REAL
-    longitude REAL
-    timestamp TEXT
-    latitude_ref TEXT
-    longitude_ref TEXT
-    altitude_ref INTEGER
-    altitude REAL
-    speed_ref TEXT
-    speed REAL
-    img_direction_ref TEXT
-    img_direction REAL
-    dest_bearing_ref TEXT
-    dest_bearing REAL
-    h_positioning_error REAL
-);
-
-CREATE INDEX idx_location ON images(latitude, longitude);
-CREATE INDEX idx_timestamp ON images(timestamp);
-```
-
-### TypeScript Interfaces
+### 1. Shared Types (`packages/shared/src/types.ts`)
 
 ```typescript
 interface GeoLocation {
@@ -205,144 +77,215 @@ interface GeoLocation {
   longitude: number;
 }
 
-
 interface ImageRecord {
   id: string;
-  path: string;
-  thumbnailPath: string;
-  location: GeoLocation;
-  timestamp?: string;
+  imageUrl: string;       // absolute URL — served directly from S3/MinIO
+  thumbnailUrl: string;   // absolute URL — served directly from S3/MinIO
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  latitudeRef?: string;
+  longitudeRef?: string;
+  altitudeRef?: string;
+  altitude?: number;
+  speedRef?: string;
+  speed?: number;
+  imgDirectionRef?: string;
+  imgDirection?: number;
+  destBearingRef?: string;
+  destBearing?: number;
+  hPositioningError?: number;
 }
+```
 
-interface AppState {
-  images: ImageRecord[];
-  selectedImage: ImageRecord | null;
-  mapCenter: GeoLocation;
-  mapZoom: number;
-  isModalOpen: boolean;
-}
+`imageUrl` and `thumbnailUrl` are absolute URLs pointing directly at S3/MinIO. The frontend never
+derives image paths from IDs — it uses whatever URLs the API returns.
+
+### 2. Backend (`packages/backend/`)
+
+**Purpose:** Reads `images.db` and serves image metadata via REST API. Never proxies image bytes.
+
+#### Database service (`src/services/database.ts`)
+
+- Downloads `images.db` from S3 to `/tmp/spyro-map-images.db` at startup.
+- Re-downloads on a configurable interval (`DB_REFRESH_INTERVAL_MS`, default 5 min).
+- Uses `better-sqlite3` for synchronous query execution.
+- Exports testable helpers (`rowToRecord`, `queryAllImages`, `queryImageById`, `queryNearbyImages`)
+  that accept the database instance as a parameter, decoupled from the singleton.
+- An `isReloading` flag prevents concurrent reloads.
+
+#### Routes (`src/routes/images.ts`)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/health` | `{ status: "ok" }` |
+| `GET` | `/api/images` | All images |
+| `GET` | `/api/images/:id` | Single image; 404 if missing |
+| `GET` | `/api/images/:id/nearby?radius=1` | Nearby images within `radius` km; 400 if radius is invalid/negative |
+| `POST` | `/api/reload` | Re-download `images.db` from object storage |
+
+#### Configuration (`src/config.ts`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `STORAGE_ENDPOINT` | — | S3/MinIO endpoint URL |
+| `STORAGE_BUCKET` | — | Bucket name |
+| `STORAGE_ACCESS_KEY` | — | Access key ID |
+| `STORAGE_SECRET_KEY` | — | Secret access key |
+| `STORAGE_REGION` | `us-east-1` | AWS region (MinIO ignores this) |
+| `IMAGES_BASE_URL` | — | Public base URL for images (prepended to `/images/…` paths) |
+| `DB_REFRESH_INTERVAL_MS` | `300000` | Reload interval in ms; `0` = startup only |
+| `PORT` | `3001` | HTTP listen port |
+
+### 3. Frontend (`packages/frontend/`)
+
+**Purpose:** Static React SPA served from nginx/S3. Fetches metadata from the backend API;
+loads images directly from S3/MinIO via `<img src="…">`.
+
+#### ApiClient (`src/services/ApiClient.ts`)
+
+Wraps `fetch` calls to the backend REST API. `API_BASE_URL` defaults to `''` (same origin) and
+can be overridden via `VITE_API_BASE_URL` at build time.
+
+#### MapView (`src/components/MapView.tsx`)
+
+- Renders a Leaflet map with OpenStreetMap tiles (no API key needed).
+- Uses `DivIcon` for circular thumbnail markers — same visual style as the original app.
+- Clusters markers with `leaflet.markercluster`.
+
+#### Routing
+
+Hash-based routing (`/#/image/:imageId`) for static-hosting compatibility.
+
+| Path | Component | Description |
+|---|---|---|
+| `/` | `MainMapView` | All images on the map |
+| `/image/:imageId` | `ImageView` | Deep-linked single image with modal |
+
+`MainMapView` calls `apiClient.getAllImages()`.
+`ImageView` calls `apiClient.getNearbyImages()` to populate prev/next navigation.
+
+### 4. Extractor (`packages/extractor/`)
+
+**Purpose:** Ingestion job. Reads source photos (from S3 `raw/` prefix or a local directory),
+extracts EXIF GPS data, generates scaled images and thumbnails, and writes `images.db` to S3.
+
+**Key design decisions:**
+- Image IDs are deterministic: `md5(s3Key + etag)` for bucket sources, `md5(relativePath + mtime)` for local.
+- The job downloads the existing `images.db` at startup and appends only new images (idempotent).
+- Writes to `images.db.tmp`, then replaces `images.db` in S3 atomically at the end.
+- Supported input formats: `.jpg`, `.jpeg`, `.tiff`, `.tif`.
+
+**Configuration** (same `STORAGE_*` vars as backend, plus):
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOCAL_SOURCE_PATH` | — | Read from local path instead of `raw/` prefix |
+
+## Data Models
+
+### SQLite Schema
+
+```sql
+CREATE TABLE images (
+    id TEXT PRIMARY KEY,
+    latitude REAL,
+    longitude REAL,
+    timestamp TEXT,
+    latitude_ref TEXT,
+    longitude_ref TEXT,
+    altitude_ref INTEGER,
+    altitude REAL,
+    speed_ref TEXT,
+    speed REAL,
+    img_direction_ref TEXT,
+    img_direction REAL,
+    dest_bearing_ref TEXT,
+    dest_bearing REAL,
+    h_positioning_error REAL
+);
+
+CREATE INDEX idx_location ON images(latitude, longitude);
+CREATE INDEX idx_timestamp ON images(timestamp);
+```
+
+Image paths are **not** stored in the database. `imageUrl` and `thumbnailUrl` are derived at
+query time by the backend using `IMAGES_BASE_URL`.
+
+### Object Storage Layout
+
+```
+bucket/
+├── raw/                 ← upload source photos here (private)
+├── images/              ← processed full-size JPEGs (public read)
+│   └── thumbnails/      ← thumbnails (public read)
+└── images.db            ← SQLite DB (private; backend + extractor only)
 ```
 
 ## Error Handling
 
-### Python Script Error Handling
-- **Invalid image files:** Skip and log warning
-- **Missing EXIF data:** Skip image processing
-- **Database errors:** Rollback transaction and report error
-- **File system errors:** Graceful handling with user feedback
+### Backend
+- `initDatabase()` is wrapped in a try/catch at startup; the server logs an error and exits
+  if the database cannot be loaded.
+- `reloadDatabase()` is guarded by `isReloading` to prevent concurrent downloads.
+- Routes return `404` for missing images and `400` for invalid query parameters.
 
-### React Application Error Handling
-- **Database loading errors:** Display error message with retry option
-- **Google Maps API errors:** Fallback to basic map or error state
-- **Image loading errors:** Show placeholder with error indication
-- **Network errors:** Implement retry logic with exponential backoff
+### Extractor
+- `copyDatabase()` is awaited (uses `better-sqlite3`'s async `backup()` API).
+- Unsupported file formats and missing EXIF data are skipped with a warning log.
 
-### Error Boundaries
-```typescript
-class ImageErrorBoundary extends React.Component {
-  // Catches errors in image loading and display
-}
+### Frontend
+- `ApiClient` throws on non-2xx responses.
+- `MainMapView` and `ImageView` show an error state if the API call fails.
 
-class MapErrorBoundary extends React.Component {
-  // Catches errors in map rendering
-}
+## Testing
+
+Jest is used across all packages. Run all tests from the root:
+
+```shell
+npm test
 ```
 
-## Testing Strategy
+Tests are co-located in a `tests/` subfolder under each package:
 
-### Unit Testing
-- **Database Service:** Mock SQLite operations, test data transformation
-- **Utility Functions:** Test distance calculations, EXIF parsing
-- **Components:** Test rendering, user interactions, state management
-- **Routing:** Test URL generation and navigation
+| Package | Test file | Coverage |
+|---|---|---|
+| `backend` | `tests/utils.test.ts` | `haversineKm` distance function |
+| `backend` | `tests/database.test.ts` | `rowToRecord`, `queryAllImages`, `queryImageById`, `queryNearbyImages` |
+| `backend` | `tests/routes.test.ts` | All REST routes, including error cases |
+| `extractor` | `tests/database.test.ts` | SQLite helpers, `copyDatabase` |
+| `extractor` | `tests/processor.test.ts` | EXIF extraction, image processing |
+| `frontend` | `tests/ApiClient.test.ts` | All `ApiClient` methods |
 
-### Integration Testing
-- **Map Integration:** Test Google Maps API integration
-- **Database Integration:** Test SQLite database queries
-- **Image Loading:** Test image and thumbnail loading
-- **Social Sharing:** Test share URL generation
+## Deployment
 
-### End-to-End Testing
-- **User Workflows:** Test complete user journeys
-- **Mobile Responsiveness:** Test touch interactions and responsive design
-- **Performance:** Test loading times and memory usage
-- **Cross-browser:** Test compatibility across browsers
+### Local Development
 
-### Testing Tools
-- **Jest** for unit testing
-- **React Testing Library** for component testing
-- **Cypress** for end-to-end testing
-- **Lighthouse** for performance testing
-
-## Performance Considerations
-
-### Image Optimization
-- **Thumbnail Generation:** Create optimized thumbnails during data preparation
-- **Lazy Loading:** Load images only when needed
-- **Progressive Loading:** Show low-quality placeholders first
-- **Caching:** Implement browser caching for images and thumbnails
-
-### Database Optimization
-- **Indexing:** Create indexes on location and timestamp columns
-- **Query Optimization:** Use spatial queries for nearby image searches
-- **Data Compression:** Compress EXIF JSON data
-- **Connection Pooling:** Reuse database connections
-
-### Bundle Optimization
-- **Code Splitting:** Split code by routes and features
-- **Tree Shaking:** Remove unused code
-- **Minification:** Compress JavaScript and CSS
-- **Compression:** Enable gzip/brotli compression
-
-### Map Performance
-- **Marker Clustering:** Group nearby markers to reduce rendering load
-- **Viewport Culling:** Only render markers in visible area
-- **Debounced Updates:** Throttle map updates during pan/zoom
-- **Memory Management:** Clean up map resources properly
-
-## Security Considerations
-
-### Data Privacy
-- **EXIF Sanitization:** Remove sensitive EXIF data before display
-- **Location Privacy:** Option to blur exact coordinates
-- **User Data:** No personal data collection or storage
-
-### Web Security
-- **Content Security Policy:** Implement CSP headers
-- **HTTPS Only:** Enforce secure connections
-- **Input Validation:** Validate all user inputs
-- **XSS Prevention:** Sanitize any user-generated content
-
-### API Security
-- **Google Maps API:** Restrict API key to specific domains
-- **Rate Limiting:** Implement client-side rate limiting
-- **Error Handling:** Don't expose sensitive error information
-
-## Deployment Architecture
-
-### Static Hosting Structure
-```
-/
-├── index.html
-├── static/
-│   ├── js/
-│   ├── css/
-│   └── media/
-├── images/
-│   ├── full/
-│   └── thumbnails/
-├── images.db (SQLite database)
-└── manifest.json
+```shell
+docker compose up          # starts MinIO, backend, frontend (nginx)
+docker compose run --rm extractor   # ingest from bucket raw/ prefix
 ```
 
-### Build Process
-1. **Development:** Vite dev server with hot reload
-2. **Production Build:** Vite build with optimization
-3. **Asset Processing:** Generate thumbnails and optimize images
-4. **Database Generation:** Run Python script to create SQLite database
-5. **Deployment:** Upload static files to web host
+MinIO web console: `http://localhost:9001` (credentials: `minioadmin` / `minioadmin`)
 
-### Environment Configuration
-- **Development:** Local development with mock data
-- **Production:** Optimized build with real image database
-- **Environment Variables:** Google Maps API key configuration
+### Production
+
+1. Upload source photos to the `raw/` prefix of your S3 bucket.
+2. Run the extractor as an ECS scheduled task (or one-off container).
+3. Deploy the backend container (ECS service, Fly.io, etc.) with `STORAGE_*` and `IMAGES_BASE_URL` set.
+4. Build the frontend: `npm run build --workspace=packages/frontend`
+5. Upload `packages/frontend/dist/` to S3/CDN.
+6. Configure CDN/load balancer to route `/api/*` to the backend.
+
+The `raw/` prefix and `images.db` should remain private. Only `images/` and `images/thumbnails/`
+require public read access.
+
+## Key Conventions
+
+- Image paths are **never** stored in SQLite. The backend derives `imageUrl` and `thumbnailUrl`
+  from the image `id` using `IMAGES_BASE_URL`.
+- The S3 client must use `forcePathStyle: true` for MinIO compatibility.
+- Normalize image identifiers with `extractImageId()` when working with routes, selection
+  handlers, or shared URLs.
+- Hash-based routing (`/#/image/:imageId`) is preserved for static-hosting compatibility.
+- TypeScript is configured in strict mode across all packages.
