@@ -26,11 +26,14 @@ const MapPage: React.FC = () => {
 
   // Load images once on mount; handle deep-link if imageId is present in the URL
   useEffect(() => {
+    const controller = new AbortController();
+
     const loadImages = async () => {
       try {
         setLoading(true);
         setError(null);
         const loadedImages = await apiClient.getAllImages();
+        if (controller.signal.aborted) return;
         setImages(loadedImages);
 
         if (rawImageId) {
@@ -54,18 +57,45 @@ const MapPage: React.FC = () => {
           }
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error('Failed to load images:', err);
         setError(err instanceof Error ? err.message : 'Failed to load images');
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     loadImages();
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // runs once on mount — rawImageId is intentionally not a dep (deep-link only)
 
-  // Stable callback — safe with useCallback([]) because pendingPanRef is a ref (not state)
+  // Sync modal state when URL changes (browser back/forward navigation)
+  // `images` must be loaded before we can resolve image IDs
+  useEffect(() => {
+    if (images.length === 0) return;
+
+    if (!rawImageId) {
+      setSelectedImage(null);
+      setNearbyGroup([]);
+      return;
+    }
+
+    const cleanId = extractImageId(rawImageId);
+    const image = images.find(img => img.id === cleanId);
+    if (!image) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    // Only update state if the URL-driven image differs from current selection
+    if (image.id !== selectedImage?.id) {
+      const group = computeNearbyGroup(image, images);
+      setSelectedImage(image);
+      setNearbyGroup(group);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawImageId, images]); // selectedImage excluded — prevents loop on handleNavigate updates
   const onMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
     if (pendingPanRef.current) {
