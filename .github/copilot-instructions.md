@@ -1,5 +1,7 @@
 # Copilot instructions for Spyo Map
 
+> **For agentic workers:** REQUIRED: Use superpowers:using-superpowers (if it is available).
+
 - Use Mise-en-place for organizing code and files. Install all tools with `mise`.
 
 ## Build, lint, and data-prep commands
