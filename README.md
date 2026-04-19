@@ -1,7 +1,7 @@
 # Spyo Map
 
-A browser-based web application that displays geo-tagged images on an interactive map. Browse photos by location,
-view in a modal lightbox, navigate between nearby images, and share on social media.
+A browser-based web application that displays geo-tagged images on an interactive map. Browse photos by location, view
+in a modal lightbox, navigate between nearby images, and share on social media.
 
 Built with React + Leaflet (OpenStreetMap) frontend, a Fastify API backend, and MinIO/S3 object storage for images.
 
@@ -112,22 +112,22 @@ npm run build --workspace=packages/extractor
 
 **Backend** (`packages/backend/`):
 
-| Variable | Default | Description |
-|---|---|---|
-| `STORAGE_ENDPOINT` | — | S3/MinIO endpoint (e.g. `http://minio:9000`) |
-| `STORAGE_BUCKET` | — | Bucket name |
-| `STORAGE_ACCESS_KEY` | — | Access key ID |
-| `STORAGE_SECRET_KEY` | — | Secret access key |
-| `STORAGE_REGION` | `us-east-1` | AWS region (MinIO ignores this) |
-| `IMAGES_BASE_URL` | — | Public base URL for images (e.g. `http://localhost:9000/spyro-map`) |
-| `DB_REFRESH_INTERVAL_MS` | `300000` | DB re-download interval ms (`0` = startup only) |
-| `PORT` | `3001` | HTTP port |
+| Variable                 | Default     | Description                                                         |
+|--------------------------|-------------|---------------------------------------------------------------------|
+| `STORAGE_ENDPOINT`       | —           | S3/MinIO endpoint (e.g. `http://minio:9000`)                        |
+| `STORAGE_BUCKET`         | —           | Bucket name                                                         |
+| `STORAGE_ACCESS_KEY`     | —           | Access key ID                                                       |
+| `STORAGE_SECRET_KEY`     | —           | Secret access key                                                   |
+| `STORAGE_REGION`         | `us-east-1` | AWS region (MinIO ignores this)                                     |
+| `IMAGES_BASE_URL`        | —           | Public base URL for images (e.g. `http://localhost:9000/spyro-map`) |
+| `DB_REFRESH_INTERVAL_MS` | `300000`    | DB re-download interval ms (`0` = startup only)                     |
+| `PORT`                   | `3001`      | HTTP port                                                           |
 
 **Extractor** (`packages/extractor/`): same `STORAGE_*` vars plus:
 
-| Variable | Default | Description |
-|---|---|---|
-| `LOCAL_SOURCE_PATH` | — | Read from local path instead of `raw/` in bucket |
+| Variable            | Default | Description                                      |
+|---------------------|---------|--------------------------------------------------|
+| `LOCAL_SOURCE_PATH` | —       | Read from local path instead of `raw/` in bucket |
 
 ## Production deployment
 
@@ -141,10 +141,10 @@ The `raw/` prefix and `images.db` should remain private. Only `images/` and `ima
 
 ## API
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/images` | All images (with absolute `imageUrl` + `thumbnailUrl`) |
-| `GET` | `/api/images/:id` | Single image |
-| `GET` | `/api/images/:id/nearby?radius=1` | Nearby images within radius (km) |
-| `POST` | `/api/reload` | Re-download `images.db` from object storage |
-| `GET` | `/api/health` | `{ status: "ok" }` |
+| Method | Endpoint                          | Description                                            |
+|--------|-----------------------------------|--------------------------------------------------------|
+| `GET`  | `/api/images`                     | All images (with absolute `imageUrl` + `thumbnailUrl`) |
+| `GET`  | `/api/images/:id`                 | Single image                                           |
+| `GET`  | `/api/images/:id/nearby?radius=1` | Nearby images within radius (km)                       |
+| `POST` | `/api/reload`                     | Re-download `images.db` from object storage            |
+| `GET`  | `/api/health`                     | `{ status: "ok" }`                                     |

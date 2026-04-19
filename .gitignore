@@ -29,3 +29,5 @@ images/
 images.db
 .env
 .worktrees/
+*.ignore.superpowers/
+.superpowers/
