@@ -16,4 +16,10 @@ describe('haversineKm', () => {
     expect(dist).toBeGreaterThan(20000);
     expect(dist).toBeLessThan(20100);
   });
+
+  it('is symmetric: haversineKm(A, B) === haversineKm(B, A)', () => {
+    const ab = haversineKm(51.5074, -0.1278, 48.8566, 2.3522);
+    const ba = haversineKm(48.8566, 2.3522, 51.5074, -0.1278);
+    expect(ab).toBe(ba);
+  });
 });
