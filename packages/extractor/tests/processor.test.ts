@@ -69,6 +69,46 @@ describe('extractExif', () => {
     const result = await extractExif(Buffer.from('empty'));
     expect(result).toBeNull();
   });
+
+  it('returns null when only latitude is present (longitude missing)', async () => {
+    mockExifrParse.mockResolvedValue({
+      latitude: 51.5074,
+    });
+    const result = await extractExif(Buffer.from('partial-gps'));
+    expect(result).toBeNull();
+  });
+
+  it('uses CreateDate when DateTimeOriginal is missing', async () => {
+    mockExifrParse.mockResolvedValue({
+      latitude: 51.5074,
+      longitude: -0.1278,
+      CreateDate: new Date('2024-07-20T14:00:00Z'),
+    });
+
+    const result = await extractExif(Buffer.from('create-date'));
+
+    expect(result).not.toBeNull();
+    expect(result!.timestamp).toBe('2024-07-20T14:00:00.000Z');
+  });
+
+  it('uses ModifyDate when both DateTimeOriginal and CreateDate are missing', async () => {
+    mockExifrParse.mockResolvedValue({
+      latitude: 51.5074,
+      longitude: -0.1278,
+      ModifyDate: new Date('2024-08-10T16:30:00Z'),
+    });
+
+    const result = await extractExif(Buffer.from('modify-date'));
+
+    expect(result).not.toBeNull();
+    expect(result!.timestamp).toBe('2024-08-10T16:30:00.000Z');
+  });
+
+  it('handles/propagates exifr.parse rejection', async () => {
+    mockExifrParse.mockRejectedValue(new Error('EXIF parse failed'));
+
+    await expect(extractExif(Buffer.from('corrupt'))).rejects.toThrow('EXIF parse failed');
+  });
 });
 
 describe('processImage', () => {
@@ -92,5 +132,21 @@ describe('processImage', () => {
   it('resizes thumbnail to 200x200 (cover fit)', async () => {
     await processImage(Buffer.from('x'));
     expect(mockResize).toHaveBeenCalledWith(200, 200, expect.objectContaining({ fit: 'cover' }));
+  });
+
+  it('calls jpeg with quality 85 for full-size and quality 80 for thumbnail', async () => {
+    await processImage(Buffer.from('quality-test'));
+
+    expect(mockJpeg).toHaveBeenCalledTimes(2);
+    expect(mockJpeg).toHaveBeenCalledWith({ quality: 85 });
+    expect(mockJpeg).toHaveBeenCalledWith({ quality: 80 });
+  });
+
+  it('propagates sharp errors', async () => {
+    mockSharp.mockImplementationOnce(() => {
+      throw new Error('Sharp processing failed');
+    });
+
+    await expect(processImage(Buffer.from('corrupt-image'))).rejects.toThrow('Sharp processing failed');
   });
 });

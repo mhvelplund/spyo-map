@@ -7,7 +7,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+    "test": "node --experimental-vm-modules ../../node_modules/.bin/jest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",

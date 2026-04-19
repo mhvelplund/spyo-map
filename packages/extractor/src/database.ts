@@ -96,9 +96,9 @@ export function insertImage(
   });
 }
 
-export function copyDatabase(srcPath: string, destPath: string): void {
+export async function copyDatabase(srcPath: string, destPath: string): Promise<void> {
   const src = new Database(srcPath, { readonly: true });
-  src.backup(destPath);
+  await src.backup(destPath);
   src.close();
 }
 
