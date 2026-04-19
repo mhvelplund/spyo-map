@@ -1,1 +1,1 @@
-export { DatabaseService, databaseService } from './DatabaseService';
+export { ApiClient, apiClient } from './ApiClient';
