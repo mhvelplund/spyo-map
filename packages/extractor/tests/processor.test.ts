@@ -1,9 +1,11 @@
-// @ts-nocheck
 import { jest } from '@jest/globals';
 
-// Create mock functions
-const mockExifrParse = jest.fn();
-const mockToBuffer = jest.fn().mockResolvedValue(Buffer.from('mock-image'));
+// Create mock functions with proper typing
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockExifrParse = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockToBuffer = jest.fn() as jest.Mock<any>;
+mockToBuffer.mockResolvedValue(Buffer.from('mock-image'));
 const mockResize = jest.fn().mockReturnThis();
 const mockJpeg = jest.fn().mockReturnThis();
 const mockInstance = {
