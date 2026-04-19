@@ -58,4 +58,17 @@ describe('computeNearbyGroup', () => {
     const group = computeNearbyGroup(ORIGIN, [ORIGIN, NEAR, FAR], 200);
     expect(group.map(i => i.id)).toContain('far');
   });
+
+  it('returns only selected image when allImages is empty', () => {
+    const group = computeNearbyGroup(ORIGIN, []);
+    expect(group).toHaveLength(1);
+    expect(group[0].id).toBe('origin');
+  });
+
+  it('works when selected is not present in allImages', () => {
+    const group = computeNearbyGroup(ORIGIN, [NEAR, FAR]);
+    expect(group[0].id).toBe('origin');
+    expect(group.map(i => i.id)).toContain('near');
+    expect(group.map(i => i.id)).not.toContain('far');
+  });
 });
