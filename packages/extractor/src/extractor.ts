@@ -52,7 +52,7 @@ async function downloadExistingDb(
     return false;
   }
   await import('node:fs/promises').then((fs) => fs.writeFile(LOCAL_DB_PATH, data));
-  copyDatabase(LOCAL_DB_PATH, TMP_DB_PATH);
+  await copyDatabase(LOCAL_DB_PATH, TMP_DB_PATH);
   console.log('Existing database copied to images.db.tmp');
   return true;
 }

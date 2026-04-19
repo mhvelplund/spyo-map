@@ -25,6 +25,7 @@ function buildS3Client(): S3Client {
 
 const s3 = buildS3Client();
 let db: BetterSqlite3.Database | null = null;
+let isReloading = false;
 
 async function downloadDb(): Promise<void> {
   const response = await s3.send(
@@ -51,8 +52,14 @@ export async function initDatabase(): Promise<void> {
 }
 
 export async function reloadDatabase(): Promise<void> {
-  await downloadDb();
-  openDb();
+  if (isReloading) return;
+  isReloading = true;
+  try {
+    await downloadDb();
+    openDb();
+  } finally {
+    isReloading = false;
+  }
 }
 
 function getDb(): BetterSqlite3.Database {

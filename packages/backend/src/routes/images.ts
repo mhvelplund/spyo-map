@@ -24,6 +24,9 @@ export async function imageRoutes(app: FastifyInstance): Promise<void> {
     const image = getImageById(request.params.id);
     if (!image) return reply.status(404).send({ error: "Not found" });
     const radius = parseFloat(request.query.radius ?? "1");
+    if (isNaN(radius) || radius < 0) {
+      return reply.status(400).send({ error: "Invalid radius" });
+    }
     return getNearbyImages(request.params.id, image.latitude, image.longitude, radius);
   });
 
