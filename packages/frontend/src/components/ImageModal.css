@@ -303,3 +303,15 @@
   content: "Loading...";
   color: #666;
 }
+
+/* Prevent metadata from squeezing image on very short screens (e.g. iPhone SE portrait) */
+@media (max-height: 600px) and (orientation: portrait) {
+  .image-metadata {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .image-title {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+}
