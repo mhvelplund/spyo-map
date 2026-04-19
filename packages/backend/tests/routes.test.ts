@@ -95,6 +95,22 @@ describe('GET /api/images/:id/nearby', () => {
     const response = await app.inject({ method: 'GET', url: '/api/images/nope/nearby' });
     expect(response.statusCode).toBe(404);
   });
+
+  it('passes NaN radius to service for invalid string input', async () => {
+    mockGetById.mockReturnValue(FIXTURE);
+    mockGetNearby.mockReturnValue([]);
+    const response = await app.inject({ method: 'GET', url: '/api/images/abc/nearby?radius=invalid' });
+    expect(response.statusCode).toBe(200);
+    expect(mockGetNearby).toHaveBeenCalledWith('abc', FIXTURE.latitude, FIXTURE.longitude, NaN);
+  });
+
+  it('passes negative radius to service', async () => {
+    mockGetById.mockReturnValue(FIXTURE);
+    mockGetNearby.mockReturnValue([]);
+    const response = await app.inject({ method: 'GET', url: '/api/images/abc/nearby?radius=-10' });
+    expect(response.statusCode).toBe(200);
+    expect(mockGetNearby).toHaveBeenCalledWith('abc', FIXTURE.latitude, FIXTURE.longitude, -10);
+  });
 });
 
 describe('POST /api/reload', () => {
