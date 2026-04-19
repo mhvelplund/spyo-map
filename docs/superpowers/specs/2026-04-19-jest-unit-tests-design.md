@@ -31,9 +31,22 @@ The v2 monorepo (`feat/v2-architecture`) has no automated tests. Regressions can
 
 ## Source Refactor
 
-`packages/backend/src/database.ts` contains a private `haversineKm` function used by `getNearbyImages`. To enable direct unit testing, extract it to `packages/backend/src/utils.ts` and export it.
+### 1. Extract `haversineKm` utility (backend)
 
-No other source changes are required.
+`packages/backend/src/services/database.ts` contains a private `haversineKm` function used by `getNearbyImages`. Extract it to `packages/backend/src/utils.ts` and export it so it can be tested in isolation.
+
+### 2. Add testable database query functions (backend)
+
+The backend database module holds a module-level `db` reference set only by `initDatabase()` (which requires live S3). To make query functions testable without S3, refactor `getAllImages`, `getImageById`, `getNearbyImages`, and `rowToRecord` to accept a `BetterSqlite3.Database` argument. The exported wrapper functions (`getAllImages()` etc.) will call the private helpers with the module-level `db`. Tests pass an in-memory SQLite instance directly.
+
+```ts
+// internal (exported for tests):
+export function _getAllImages(db: Database): ImageRecord[] { ... }
+// public wrapper:
+export function getAllImages(): ImageRecord[] { return _getAllImages(getDb()); }
+```
+
+Alternatively, use underscore-prefixed or `@internal` JSDoc convention. The pattern must be consistent.
 
 ## Per-Package Jest Config
 
@@ -74,12 +87,12 @@ export default config;
 - Known point pairs (e.g., London–Paris ≈ 340 km ±5%)
 - Antipodal points → ≈ 20,015 km
 
-**`tests/database.test.ts`** — `getAllImages`, `getImageById`, `getNearbyImages`:
-- Create a real SQLite `:memory:` database via the same schema as the extractor.
-- Insert fixture rows.
-- Assert getAllImages returns correct ImageRecord shape with constructed URLs.
-- Assert getImageById returns correct record / null for unknown ID.
-- Assert getNearbyImages filters by radius and sorts by distance.
+**`tests/database.test.ts`** — `_getAllImages`, `_getImageById`, `_getNearbyImages`:
+- Create a real SQLite `:memory:` database using the same schema as the extractor (`openDatabase(':memory:')`).
+- Insert fixture rows directly.
+- Assert `_getAllImages(db)` returns correct `ImageRecord` shape with constructed URLs (pass a mock `imagesBaseUrl`).
+- Assert `_getImageById(db, id, baseUrl)` returns correct record / `null` for unknown ID.
+- Assert `_getNearbyImages(db, id, lat, lon, radius, baseUrl)` filters by radius and sorts by distance.
 
 **`tests/routes.test.ts`** — API endpoints via Fastify `inject()`:
 - Mock the `database` service module with `jest.mock`.
@@ -104,12 +117,13 @@ export default config;
 
 ### `packages/frontend`
 
-**`tests/ApiClient.test.ts`** — REST client:
-- Mock global `fetch`.
-- `fetchAllImages()` calls `GET /api/images` → parses response.
-- `fetchImageById(id)` calls `GET /api/images/:id` → parses record / null on 404.
-- `fetchNearbyImages(id, radius)` calls `GET /api/images/:id/nearby?radius=...` → parses array.
-- HTTP error (500) → throws.
+**`tests/ApiClient.test.ts`** — REST client (`getAllImages`, `getImageById`, `getNearbyImages`):
+- `import.meta.env` is Vite-only and undefined in Node/Jest. Add a Jest `moduleNameMapper` entry: `'^.*/env$': '<rootDir>/tests/__mocks__/env.ts'` or use a `setupFiles` entry that defines `import.meta.env = { VITE_API_BASE_URL: '' }` globally. The frontend `jest.config.ts` must include this.
+- Mock global `fetch` using `jest.spyOn(global, 'fetch')`.
+- `getAllImages()` calls `GET /api/images` → parses response array.
+- `getImageById(id)` calls `GET /api/images/:id` → parses record on 200, returns `null` on 404.
+- `getNearbyImages(id, radius)` calls `GET /api/images/:id/nearby?radius=...` → parses array.
+- HTTP error (500) on `getAllImages`/`getImageById`/`getNearbyImages` → throws `Error`.
 
 ## Root Workspace Integration
 
