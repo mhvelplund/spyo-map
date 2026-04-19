@@ -1,6 +1,5 @@
-import type { ImageRecord } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import type { ImageRecord } from '../types/index.js';
+import { API_BASE_URL } from '../config.js';
 
 export class ApiClient {
   async getAllImages(): Promise<ImageRecord[]> {

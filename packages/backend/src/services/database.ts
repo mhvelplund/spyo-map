@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
 import type { ImageRecord } from "@spyro-map/shared";
 import { config } from "../config.js";
+import { haversineKm } from "../utils.js";
 
 const DB_PATH = "/tmp/spyro-map-images.db";
 const DB_KEY = "images.db";
@@ -54,12 +55,19 @@ export async function reloadDatabase(): Promise<void> {
   openDb();
 }
 
-function rowToRecord(row: Record<string, unknown>): ImageRecord {
+function getDb(): BetterSqlite3.Database {
+  if (!db) throw new Error("Database not initialized");
+  return db;
+}
+
+// --- Exported testable helpers (accept db and baseUrl as params) ---
+
+export function rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord {
   const id = row.id as string;
   return {
     id,
-    imageUrl: `${config.imagesBaseUrl}/images/${id}.jpg`,
-    thumbnailUrl: `${config.imagesBaseUrl}/images/thumbnails/${id}.jpg`,
+    imageUrl: `${baseUrl}/images/${id}.jpg`,
+    thumbnailUrl: `${baseUrl}/images/thumbnails/${id}.jpg`,
     latitude: row.latitude as number,
     longitude: row.longitude as number,
     timestamp: (row.timestamp as string | null) ?? "",
@@ -77,33 +85,52 @@ function rowToRecord(row: Record<string, unknown>): ImageRecord {
   };
 }
 
-function getDb(): BetterSqlite3.Database {
-  if (!db) throw new Error("Database not initialized");
-  return db;
+export function queryAllImages(db: BetterSqlite3.Database, baseUrl: string): ImageRecord[] {
+  const rows = db.prepare("SELECT * FROM images").all() as Record<string, unknown>[];
+  return rows.map((row) => rowToRecord(row, baseUrl));
 }
 
+export function queryImageById(
+  db: BetterSqlite3.Database,
+  id: string,
+  baseUrl: string,
+): ImageRecord | null {
+  const row = db.prepare("SELECT * FROM images WHERE id = ?").get(id) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? rowToRecord(row, baseUrl) : null;
+}
+
+export function queryNearbyImages(
+  db: BetterSqlite3.Database,
+  id: string,
+  lat: number,
+  lon: number,
+  radiusKm: number,
+  baseUrl: string,
+): ImageRecord[] {
+  const rows = db
+    .prepare("SELECT * FROM images WHERE id != ?")
+    .all(id) as Record<string, unknown>[];
+
+  return rows
+    .map((row) => ({
+      record: rowToRecord(row, baseUrl),
+      dist: haversineKm(lat, lon, row.latitude as number, row.longitude as number),
+    }))
+    .filter(({ dist }) => dist <= radiusKm)
+    .sort((a, b) => a.dist - b.dist)
+    .map(({ record }) => record);
+}
+
+// --- Public API (unchanged signatures — call helpers with module-level state) ---
+
 export function getAllImages(): ImageRecord[] {
-  const rows = getDb().prepare("SELECT * FROM images").all() as Record<string, unknown>[];
-  return rows.map(rowToRecord);
+  return queryAllImages(getDb(), config.imagesBaseUrl);
 }
 
 export function getImageById(id: string): ImageRecord | null {
-  const row = getDb()
-    .prepare("SELECT * FROM images WHERE id = ?")
-    .get(id) as Record<string, unknown> | undefined;
-  return row ? rowToRecord(row) : null;
-}
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return queryImageById(getDb(), id, config.imagesBaseUrl);
 }
 
 export function getNearbyImages(
@@ -112,16 +139,5 @@ export function getNearbyImages(
   lon: number,
   radiusKm: number,
 ): ImageRecord[] {
-  const rows = getDb()
-    .prepare("SELECT * FROM images WHERE id != ?")
-    .all(id) as Record<string, unknown>[];
-
-  return rows
-    .map((row) => ({
-      record: rowToRecord(row),
-      dist: haversineKm(lat, lon, row.latitude as number, row.longitude as number),
-    }))
-    .filter(({ dist }) => dist <= radiusKm)
-    .sort((a, b) => a.dist - b.dist)
-    .map(({ record }) => record);
+  return queryNearbyImages(getDb(), id, lat, lon, radiusKm, config.imagesBaseUrl);
 }
