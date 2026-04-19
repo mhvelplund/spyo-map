@@ -101,3 +101,19 @@
     border-width: 3px;
   }
 }
+
+/* Leaflet zoom controls — increase touch target from default 26px */
+.leaflet-control-zoom a {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  font-size: 18px;
+}
+
+@media (max-width: 768px) {
+  .leaflet-control-zoom a {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+  }
+}
