@@ -1,6 +1,8 @@
 [tools]
 node = "lts"
 pre-commit = "latest"
+terraform = "1.10"
+terragrunt = "0.77"
 
 [shell_alias]
 dc = "docker compose"
