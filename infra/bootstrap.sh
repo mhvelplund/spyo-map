@@ -10,10 +10,15 @@ REGION="${TF_STATE_REGION:-eu-north-1}"
 
 echo "Creating Terraform state bucket: $BUCKET_NAME in $REGION"
 
-aws s3api create-bucket \
-  --bucket "$BUCKET_NAME" \
-  --region "$REGION" \
-  --create-bucket-configuration LocationConstraint="$REGION"
+if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+  echo "Bucket $BUCKET_NAME already exists, skipping creation"
+else
+  echo "Creating bucket $BUCKET_NAME..."
+  aws s3api create-bucket \
+    --bucket "$BUCKET_NAME" \
+    --region "$REGION" \
+    --create-bucket-configuration LocationConstraint="$REGION"
+fi
 
 aws s3api put-bucket-versioning \
   --bucket "$BUCKET_NAME" \

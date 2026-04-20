@@ -92,7 +92,10 @@ resource "aws_iam_role_policy" "github_actions" {
         Sid      = "ECSPassRole"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = aws_iam_role.backend_task.arn
+        Resource = [
+          aws_iam_role.backend_task.arn,
+          aws_iam_role.ecs_task_execution.arn,
+        ]
       },
     ]
   })

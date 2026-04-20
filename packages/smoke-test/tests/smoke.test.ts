@@ -1,11 +1,9 @@
 const BASE_URL = process.env['SMOKE_BASE_URL'];
 const ALB_DNS = process.env['ALB_DNS'];
 
-if (!BASE_URL || !ALB_DNS) {
-  throw new Error('SMOKE_BASE_URL and ALB_DNS environment variables must be set');
-}
+const describeIfLive = BASE_URL && ALB_DNS ? describe : describe.skip;
 
-describe('smoke tests', () => {
+describeIfLive('smoke tests', () => {
   test('frontend is reachable at /app/', async () => {
     const res = await fetch(`${BASE_URL}/app/`);
     expect(res.status).toBe(200);
