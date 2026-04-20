@@ -1,3 +1,16 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+  }
+}
+
 resource "random_string" "origin_verify" {
   length  = 32
   special = false
@@ -102,7 +115,7 @@ resource "aws_ecs_task_definition" "backend" {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.backend.name
-        "awslogs-region"        = var.storage_region
+        "awslogs-region"        = var.region
         "awslogs-stream-prefix" = "ecs"
       }
     }

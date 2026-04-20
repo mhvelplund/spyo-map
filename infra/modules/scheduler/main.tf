@@ -24,7 +24,7 @@ resource "aws_ecs_task_definition" "extractor" {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.extractor.name
-        "awslogs-region"        = var.storage_region
+        "awslogs-region"        = var.region
         "awslogs-stream-prefix" = "ecs"
       }
     }
@@ -55,7 +55,7 @@ resource "aws_iam_role_policy" "eventbridge_scheduler" {
       {
         Effect   = "Allow"
         Action   = ["ecs:RunTask"]
-        Resource = [aws_ecs_task_definition.extractor.arn]
+        Resource = ["${aws_ecs_task_definition.extractor.arn_without_revision}:*"]
       },
       {
         Effect = "Allow"

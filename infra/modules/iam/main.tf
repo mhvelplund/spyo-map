@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
 # GitHub OIDC provider — allows GitHub Actions to assume AWS roles without static credentials
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -19,8 +28,6 @@ resource "aws_iam_role" "github_actions" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        StringLike = {
           "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
         }
       }
@@ -85,7 +92,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Sid      = "ECSPassRole"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = "arn:aws:iam::${var.account_id}:role/spyo-map-backend-task-role"
+        Resource = aws_iam_role.backend_task.arn
       },
     ]
   })
@@ -180,7 +187,6 @@ resource "aws_iam_role_policy" "extractor_task" {
         Action = ["s3:PutObject"]
         Resource = [
           "arn:aws:s3:::${var.bucket_name}/images/*",
-          "arn:aws:s3:::${var.bucket_name}/images/thumbnails/*",
           "arn:aws:s3:::${var.bucket_name}/images.db",
         ]
       },

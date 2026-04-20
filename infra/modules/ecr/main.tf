@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
 resource "aws_ecr_repository" "backend" {
   name                 = "${var.app_name}-backend"
   image_tag_mutability = "MUTABLE"
