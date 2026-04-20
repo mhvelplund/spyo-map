@@ -1,5 +1,6 @@
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
+  expose = true
 }
 
 terraform {
@@ -7,9 +8,5 @@ terraform {
 }
 
 inputs = {
-  bucket_name = local.bucket_name
-}
-
-locals {
-  bucket_name = read_terragrunt_config(find_in_parent_folders()).locals.bucket_name
+  bucket_name = include.root.locals.bucket_name
 }

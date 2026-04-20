@@ -1,6 +1,7 @@
 # AWS Bootstrap Runbook
 
-> **One-time setup.** After completing this runbook, all future deployments run automatically via GitHub Actions on every push to `main`.
+> **One-time setup.** After completing this runbook, all future deployments run automatically via GitHub Actions on
+> every push to `main`.
 
 ## Prerequisites
 
@@ -31,7 +32,7 @@ export TF_STATE_REGION=eu-north-1
 bash infra/bootstrap.sh
 ```
 
-After the bucket is created, update `infra/live/terragrunt.hcl` if you used a different bucket name:
+After the bucket is created, update `infra/live/root.hcl` if you used a different bucket name:
 ```hcl
 config = {
   bucket = "your-actual-bucket-name"
@@ -52,7 +53,7 @@ terragrunt run-all apply --terragrunt-include-dir storage
 terragrunt run-all apply --terragrunt-include-dir ecr
 terragrunt run-all apply --terragrunt-include-dir iam
 terragrunt run-all apply --terragrunt-include-dir compute
-```
+ter
 
 Note: `compute` will have an empty `IMAGES_BASE_URL` on first apply — this is expected and resolved in Pass 2.
 
@@ -72,7 +73,7 @@ terragrunt output cloudfront_domain
 # Example output: d1234abcd.cloudfront.net
 ```
 
-Update `infra/live/terragrunt.hcl`:
+Update `infra/live/root.hcl`:
 ```hcl
 locals {
   ...
@@ -115,8 +116,8 @@ terragrunt output cloudfront_distribution_id
 
 ### Set GitHub Actions variables
 
-Go to your repository → Settings → Secrets and variables → Actions → Variables tab.
-Add the following **variables** (not secrets):
+Go to your repository → Settings → Secrets and variables → Actions → Variables tab. Add the following **variables** (not
+secrets):
 
 | Variable | Value |
 |----------|-------|
@@ -135,7 +136,7 @@ Before GitHub Actions can deploy, initial images must exist in ECR:
 cd infra/live/ecr
 BACKEND_REPO=$(terragrunt output -raw backend_repo_url)
 EXTRACTOR_REPO=$(terragrunt output -raw extractor_repo_url)
-
+cd ../../..
 # Authenticate Docker to ECR
 aws ecr get-login-password --region eu-north-1 | \
   docker login --username AWS --password-stdin \
@@ -153,7 +154,7 @@ docker push $EXTRACTOR_REPO:latest
 ## Step 8: Deploy Frontend
 
 ```bash
-VITE_BASE_PATH=/app/ VITE_API_BASE_URL=/api npm run build
+VITE_BASE_PATH=/app/ VITE_API_BASE_URL="" npm run build --workspace=packages/frontend
 aws s3 sync packages/frontend/dist/ s3://spyo-map-images/app/ --delete \
   --cache-control "public,max-age=31536000,immutable" \
   --exclude "index.html"
@@ -181,7 +182,7 @@ All 4 tests should pass. If they don't, check:
 
 Open `https://<cloudfront_domain>/` in a browser. You should be redirected to `/app/` and see the map.
 
----
+
 
 ## Teardown
 

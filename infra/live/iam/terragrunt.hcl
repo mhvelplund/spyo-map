@@ -1,5 +1,6 @@
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
+  expose = true
 }
 
 terraform {
@@ -15,14 +16,9 @@ dependency "ecr" {
 }
 
 inputs = {
-  account_id          = local.account_id
-  region              = local.region
+  account_id          = include.root.locals.account_id
+  region              = include.root.locals.region
   bucket_name         = dependency.storage.outputs.bucket_id
   backend_repo_arn    = dependency.ecr.outputs.backend_repo_arn
   extractor_repo_arn  = dependency.ecr.outputs.extractor_repo_arn
-}
-
-locals {
-  account_id = read_terragrunt_config(find_in_parent_folders()).locals.account_id
-  region     = read_terragrunt_config(find_in_parent_folders()).locals.region
 }

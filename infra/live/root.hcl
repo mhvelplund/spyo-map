@@ -8,7 +8,7 @@ locals {
   # On first apply, leave cloudfront_domain as "". After cdn module creates
   # the distribution, set this to the output of `terragrunt output cloudfront_domain`
   # in infra/live/cdn/, then re-apply infra/live/compute/.
-  cloudfront_domain = ""
+  cloudfront_domain = "d1296i2w8iexnj.cloudfront.net"
 }
 
 remote_state {

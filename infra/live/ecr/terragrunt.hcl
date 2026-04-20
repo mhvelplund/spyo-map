@@ -1,5 +1,6 @@
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
+  expose = true
 }
 
 terraform {
@@ -7,9 +8,5 @@ terraform {
 }
 
 inputs = {
-  app_name = local.app_name
-}
-
-locals {
-  app_name = read_terragrunt_config(find_in_parent_folders()).locals.app_name
+  app_name = include.root.locals.app_name
 }
