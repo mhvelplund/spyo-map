@@ -1,8 +1,8 @@
 export interface Config {
   storageEndpoint: string | undefined;
   storageBucket: string;
-  storageAccessKey: string;
-  storageSecretKey: string;
+  storageAccessKey: string | undefined;
+  storageSecretKey: string | undefined;
   storageRegion: string;
   localSourcePath: string | undefined;
 }
@@ -19,8 +19,8 @@ export function loadConfig(): Config {
   return {
     storageEndpoint: process.env['STORAGE_ENDPOINT'] || undefined,
     storageBucket: requireEnv('STORAGE_BUCKET'),
-    storageAccessKey: requireEnv('STORAGE_ACCESS_KEY'),
-    storageSecretKey: requireEnv('STORAGE_SECRET_KEY'),
+    storageAccessKey: process.env['STORAGE_ACCESS_KEY'] || undefined,
+    storageSecretKey: process.env['STORAGE_SECRET_KEY'] || undefined,
     storageRegion: process.env['STORAGE_REGION'] ?? 'us-east-1',
     localSourcePath: process.env['LOCAL_SOURCE_PATH'] || undefined,
   };
