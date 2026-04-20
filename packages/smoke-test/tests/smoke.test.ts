@@ -47,7 +47,9 @@ describe('smoke tests', () => {
       if (res.status >= 200 && res.status < 300) {
         throw new Error(`ALB returned HTTP ${res.status} — direct access is not blocked`);
       }
-      // Non-2xx (e.g. 403 from ALB default rule) is acceptable
+      // Non-2xx means ALB is network-reachable but blocked at application layer
+      // (ideally the SG drops the connection before this point)
+      console.warn(`ALB bypass test: HTTP ${res.status} received — network reachable but blocked at application layer (verify SG restricts inbound to CloudFront prefix list only)`);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return; // timeout → pass
       if (err instanceof TypeError) return; // network error (ECONNREFUSED, ECONNRESET) → pass
