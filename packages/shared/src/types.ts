@@ -43,6 +43,7 @@ export interface ImageModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (direction: 'prev' | 'next') => void;
+  onImageNavigated?: (imageId: string) => void;
 }
 
 export interface SocialShareProps {

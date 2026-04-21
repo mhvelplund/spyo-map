@@ -1,0 +1,69 @@
+.landing-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+.landing-hero {
+  text-align: center;
+  color: white;
+  padding: 2rem;
+  max-width: 600px;
+}
+
+.landing-title {
+  font-size: 3.5rem;
+  font-weight: bold;
+  margin: 0 0 1.5rem 0;
+  letter-spacing: -0.02em;
+}
+
+.landing-description {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  margin: 0 0 2rem 0;
+  opacity: 0.95;
+}
+
+.landing-button {
+  display: inline-block;
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #667eea;
+  background-color: white;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.landing-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.landing-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .landing-title {
+    font-size: 2.5rem;
+  }
+
+  .landing-description {
+    font-size: 1rem;
+  }
+
+  .landing-button {
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+  }
+}

@@ -35,3 +35,4 @@ images.db
 # Terra*
 .terraform*
 .terragrunt*
+extract.sh

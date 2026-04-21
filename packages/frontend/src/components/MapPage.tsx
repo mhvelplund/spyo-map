@@ -111,8 +111,15 @@ const MapPage: React.FC = () => {
     const group = computeNearbyGroup(image, images);
     setSelectedImage(image);
     setNearbyGroup(group);
-    navigate(`/image/${image.id}`);
+    navigate(`/map/image/${image.id}`);
   }, [images, navigate]);
+
+  const handleImageNavigated = useCallback((imageId: string) => {
+    const image = images.find(img => img.id === imageId);
+    if (image && mapRef.current) {
+      mapRef.current.panTo([image.latitude, image.longitude]);
+    }
+  }, [images]);
 
   const handleNavigate = useCallback((direction: 'prev' | 'next') => {
     if (!selectedImage || nearbyGroup.length <= 1) return;
@@ -122,13 +129,14 @@ const MapPage: React.FC = () => {
       : (currentIndex < nearbyGroup.length - 1 ? currentIndex + 1 : 0);
     const nextImage = nearbyGroup[nextIndex];
     setSelectedImage(nextImage);
-    navigate(`/image/${nextImage.id}`, { replace: true });
-  }, [selectedImage, nearbyGroup, navigate]);
+    navigate(`/map/image/${nextImage.id}`, { replace: true });
+    handleImageNavigated(nextImage.id);
+  }, [selectedImage, nearbyGroup, navigate, handleImageNavigated]);
 
   const handleCloseModal = useCallback(() => {
     setSelectedImage(null);
     setNearbyGroup([]);
-    navigate('/');
+    navigate('/map');
   }, [navigate]);
 
   if (loading) {
@@ -178,6 +186,7 @@ const MapPage: React.FC = () => {
         isOpen={!!selectedImage}
         onClose={handleCloseModal}
         onNavigate={handleNavigate}
+        onImageNavigated={handleImageNavigated}
       />
     </div>
   );

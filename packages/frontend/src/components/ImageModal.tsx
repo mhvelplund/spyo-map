@@ -8,19 +8,27 @@ const ImageModal: React.FC<ImageModalProps> = ({
   nearbyImages,
   isOpen,
   onClose,
-  onNavigate
+  onNavigate,
+  // onImageNavigated prop is accepted but not currently used by this component.
+  // It's called by MapPage when navigation occurs to trigger map recentering.
 }) => {
   const modalTitleId = useId();
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // Handle escape key press
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!isOpen) return;
 
     switch (event.key) {
       case 'Escape':
-        onClose();
+        if (isExpanded) {
+          setIsExpanded(false);
+        } else {
+          onClose();
+        }
         break;
       case 'ArrowLeft':
         if (nearbyImages.length > 1) {
@@ -33,7 +41,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         }
         break;
     }
-  }, [isOpen, onClose, onNavigate, nearbyImages.length]);
+  }, [isOpen, isExpanded, onClose, onNavigate, nearbyImages.length]);
 
   // Add/remove event listeners
   useEffect(() => {
@@ -124,6 +132,10 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   };
 
+  const handleImageClick = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   // Don't render if not open or no image
   if (!isOpen || !image) {
     return null;
@@ -135,7 +147,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
   return (
     <div
-      className="image-modal-overlay"
+      className={`image-modal-overlay ${isExpanded ? 'expanded' : ''}`}
       onClick={handleBackdropClick}
       onKeyDown={handleBackdropKeyDown}
       role="dialog"
@@ -188,6 +200,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
               src={image.imageUrl}
               alt={`Taken on ${imageDate} at ${imageTime}`}
               className="modal-image"
+              onClick={handleImageClick}
               onError={(e) => {
                 // Fallback to thumbnail if full image fails to load
                 const target = e.target as HTMLImageElement;
