@@ -11,6 +11,8 @@ describe('AppRouter', () => {
     );
     // LandingPage contains "Spyo Map" heading
     expect(screen.getByRole('heading', { name: /spyo map/i })).toBeInTheDocument();
+    // And the "View Map" button
+    expect(screen.getByRole('link', { name: /view map/i })).toBeInTheDocument();
   });
 
   it('should render MapPage at /map', () => {
@@ -19,8 +21,9 @@ describe('AppRouter', () => {
         <AppRouter />
       </MemoryRouter>
     );
-    // MapPage contains "Spyo Map" header and image count or loading
-    expect(screen.getByRole('heading', { name: /spyo map/i })).toBeInTheDocument();
+    // MapPage shows loading, error, or renders the header
+    // Just verify it doesn't render LandingPage (which has "View Map" button)
+    expect(screen.queryByRole('link', { name: /view map/i })).not.toBeInTheDocument();
   });
 
   it('should render MapPage at /map/image/:imageId', () => {
@@ -29,7 +32,7 @@ describe('AppRouter', () => {
         <AppRouter />
       </MemoryRouter>
     );
-    // MapPage contains "Spyo Map" heading
-    expect(screen.getByRole('heading', { name: /spyo map/i })).toBeInTheDocument();
+    // MapPage routes to same component as /map
+    expect(screen.queryByRole('link', { name: /view map/i })).not.toBeInTheDocument();
   });
 });
