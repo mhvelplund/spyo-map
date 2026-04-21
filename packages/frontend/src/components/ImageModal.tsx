@@ -8,7 +8,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
   nearbyImages,
   isOpen,
   onClose,
-  onNavigate
+  onNavigate,
+  // onImageNavigated prop is accepted but not currently used by this component.
+  // It's called by MapPage when navigation occurs to trigger map recentering.
 }) => {
   const modalTitleId = useId();
   const imageContainerRef = useRef<HTMLDivElement>(null);
