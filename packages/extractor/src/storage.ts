@@ -20,11 +20,10 @@ export function createS3Client(config: Config): S3Client {
   return new S3Client({
     region: config.storageRegion,
     endpoint: config.storageEndpoint ?? undefined,
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: config.storageAccessKey,
-      secretAccessKey: config.storageSecretKey,
-    },
+    ...(config.storageEndpoint ? { forcePathStyle: true } : {}),
+    ...(config.storageAccessKey && config.storageSecretKey
+      ? { credentials: { accessKeyId: config.storageAccessKey, secretAccessKey: config.storageSecretKey } }
+      : {}),
   });
 }
 

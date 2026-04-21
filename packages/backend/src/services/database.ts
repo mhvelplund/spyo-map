@@ -13,10 +13,9 @@ const DB_KEY = "images.db";
 function buildS3Client(): S3Client {
   return new S3Client({
     region: config.storage.region,
-    credentials: {
-      accessKeyId: config.storage.accessKey,
-      secretAccessKey: config.storage.secretKey,
-    },
+    ...(config.storage.accessKey && config.storage.secretKey
+      ? { credentials: { accessKeyId: config.storage.accessKey, secretAccessKey: config.storage.secretKey } }
+      : {}),
     ...(config.storage.endpoint
       ? { endpoint: config.storage.endpoint, forcePathStyle: true }
       : {}),

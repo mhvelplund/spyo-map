@@ -68,7 +68,7 @@ export default defineConfig({
   },
 
   // Base path for deployment (can be overridden with --base flag)
-  base: './',
+  base: process.env.VITE_BASE_PATH ?? './',
 
   // Ensure environment variables are properly handled
   envPrefix: 'VITE_'

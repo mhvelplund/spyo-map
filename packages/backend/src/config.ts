@@ -5,8 +5,8 @@ export const config = {
   storage: {
     endpoint: process.env.STORAGE_ENDPOINT,
     bucket: process.env.STORAGE_BUCKET ?? "spyro-map",
-    accessKey: process.env.STORAGE_ACCESS_KEY ?? "",
-    secretKey: process.env.STORAGE_SECRET_KEY ?? "",
+    accessKey: process.env.STORAGE_ACCESS_KEY || undefined,
+    secretKey: process.env.STORAGE_SECRET_KEY || undefined,
     region: process.env.STORAGE_REGION ?? "us-east-1",
   },
 } as const;
