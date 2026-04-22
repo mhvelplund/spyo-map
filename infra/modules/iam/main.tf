@@ -153,43 +153,47 @@ resource "aws_iam_role" "extractor_task" {
   })
 }
 
+data "aws_iam_policy_document" "extractor_task" {
+  statement {
+    sid = "ListRaw"
+    actions = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.bucket_name}"]
+    condition {
+      test = "StringLike"
+      variable = "s3:prefix"
+      values = ["raw/*"]
+    }
+  }
+
+  statement {
+    sid = "ReadRaw"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::${var.bucket_name}/images.db",
+      "arn:aws:s3:::${var.bucket_name}/raw/*"
+    ]
+  }
+
+  statement {
+    sid = "WriteOutput"
+    actions = ["s3:PutObject"]
+    resources = [
+      "arn:aws:s3:::${var.bucket_name}/images.db",
+      "arn:aws:s3:::${var.bucket_name}/images/*"
+    ]
+  }
+
+  statement {
+    sid = "DeleteProcessed"
+    actions = ["s3:DeleteObject"]
+    resources = [
+      "arn:aws:s3:::${var.bucket_name}/raw/*"
+    ]
+  }
+}
+
 resource "aws_iam_role_policy" "extractor_task" {
   name = "process-images"
   role = aws_iam_role.extractor_task.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ListRaw"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
-        Resource = "arn:aws:s3:::${var.bucket_name}"
-        Condition = {
-          StringLike = { "s3:prefix" = ["raw/*"] }
-        }
-      },
-      {
-        Sid      = "ReadRaw"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject"]
-        Resource = "arn:aws:s3:::${var.bucket_name}/raw/*"
-      },
-      {
-        Sid    = "WriteOutput"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
-        Resource = [
-          "arn:aws:s3:::${var.bucket_name}/images/*",
-          "arn:aws:s3:::${var.bucket_name}/images.db",
-        ]
-      },
-      {
-        Sid      = "DeleteProcessed"
-        Effect   = "Allow"
-        Action   = ["s3:DeleteObject"]
-        Resource = "arn:aws:s3:::${var.bucket_name}/raw/*"
-      },
-    ]
-  })
+  policy = data.aws_iam_policy_document.extractor_task.json
 }

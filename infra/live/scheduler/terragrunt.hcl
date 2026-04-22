@@ -9,18 +9,32 @@ terraform {
 
 dependency "networking" {
   config_path = "../networking"
+  mock_outputs = {
+    public_subnet_a_id = "subnet-12345678"
+    extractor_ecs_sg_id = "sg-12345678"
+  }
 }
 
 dependency "compute" {
   config_path = "../compute"
+  mock_outputs = {
+    ecs_cluster_arn = "arn:aws:ecs:us-east-1:123456789012:cluster/my-app-cluster"
+  }
 }
 
 dependency "iam" {
   config_path = "../iam"
+  mock_outputs = {
+    ecs_task_execution_role_arn = "arn:aws:iam::123456789012:role/ecsTaskExecutionRole"
+    extractor_task_role_arn = "arn:aws:iam::123456789012:role/extractorTaskRole"
+  }
 }
 
 dependency "ecr" {
   config_path = "../ecr"
+  mock_outputs = {
+    extractor_repo_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/extractor:latest"
+  }
 }
 
 inputs = {
