@@ -1,24 +1,33 @@
-import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
-import { existsSync, unlinkSync } from 'node:fs';
-import { S3Client } from '@aws-sdk/client-s3';
-import type { Config } from './config.js';
-import { getObject, putObject, listObjects, deleteObject } from './storage.js';
-import { extractExif, processImage } from './processor.js';
-import { openDatabase, imageExists, insertImage, copyDatabase } from './database.js';
+import { S3Client } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
+import { existsSync, unlinkSync } from "node:fs";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
+import type { Config } from "./config.js";
+import {
+  copyDatabase,
+  imageExists,
+  insertImage,
+  openDatabase,
+} from "./database.js";
+import { extractExif, processImage } from "./processor.js";
+import { deleteObject, getObject, listObjects, putObject } from "./storage.js";
 
-const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.tiff', '.tif']);
-const DB_KEY = 'images.db';
-const TMP_DB_PATH = 'images.db.tmp';
-const LOCAL_DB_PATH = 'images.db.local';
+const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".tiff", ".tif"]);
+const DB_KEY = "images.db";
+const TMP_DB_PATH = "images.db.tmp";
+const LOCAL_DB_PATH = "images.db.local";
 
 function generateIdFromS3(key: string, etag: string): string {
-  return createHash('md5').update(key + etag).digest('hex');
+  return createHash("md5")
+    .update(key + etag)
+    .digest("hex");
 }
 
 function generateIdFromLocal(relativePath: string, mtime: string): string {
-  return createHash('md5').update(relativePath + mtime).digest('hex');
+  return createHash("md5")
+    .update(relativePath + mtime)
+    .digest("hex");
 }
 
 async function collectLocalImages(sourceDir: string): Promise<string[]> {
@@ -30,7 +39,7 @@ async function collectLocalImages(sourceDir: string): Promise<string[]> {
       if (entry.isDirectory()) {
         await walk(fullPath);
       } else if (entry.isFile()) {
-        const ext = entry.name.slice(entry.name.lastIndexOf('.')).toLowerCase();
+        const ext = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
         if (SUPPORTED_EXTENSIONS.has(ext)) {
           results.push(fullPath);
         }
@@ -45,19 +54,24 @@ async function downloadExistingDb(
   s3: S3Client,
   bucket: string,
 ): Promise<boolean> {
-  console.log('Downloading existing images.db from object storage...');
+  console.log("Downloading existing images.db from object storage...");
   const data = await getObject(s3, bucket, DB_KEY);
   if (!data) {
-    console.log('No existing images.db found — starting fresh.');
+    console.log("No existing images.db found — starting fresh.");
     return false;
   }
-  await import('node:fs/promises').then((fs) => fs.writeFile(LOCAL_DB_PATH, data));
+  await import("node:fs/promises").then((fs) =>
+    fs.writeFile(LOCAL_DB_PATH, data),
+  );
   await copyDatabase(LOCAL_DB_PATH, TMP_DB_PATH);
-  console.log('Existing database copied to images.db.tmp');
+  console.log("Existing database copied to images.db.tmp");
   return true;
 }
 
-export async function runExtractor(config: Config, s3: S3Client): Promise<void> {
+export async function runExtractor(
+  config: Config,
+  s3: S3Client,
+): Promise<void> {
   // 1. Download existing DB (if present) and create tmp copy
   const hadExisting = await downloadExistingDb(s3, config.storageBucket);
   if (!hadExisting) {
@@ -73,11 +87,17 @@ export async function runExtractor(config: Config, s3: S3Client): Promise<void> 
       const keysToDelete = await processBucketSource(config, s3, db);
 
       // Upload DB first so no data is lost if deletion fails
-      console.log('Uploading images.db to object storage...');
-      const { readFile: rf } = await import('node:fs/promises');
+      console.log("Uploading images.db to object storage...");
+      const { readFile: rf } = await import("node:fs/promises");
       const dbBuffer = await rf(TMP_DB_PATH);
-      await putObject(s3, config.storageBucket, DB_KEY, dbBuffer, 'application/octet-stream');
-      console.log('images.db uploaded successfully.');
+      await putObject(
+        s3,
+        config.storageBucket,
+        DB_KEY,
+        dbBuffer,
+        "application/octet-stream",
+      );
+      console.log("images.db uploaded successfully.");
 
       // Delete successfully-imported raw files
       for (const key of keysToDelete) {
@@ -96,7 +116,7 @@ export async function runExtractor(config: Config, s3: S3Client): Promise<void> 
         }
       }
 
-      console.log('Extractor complete.');
+      console.log("Extractor complete.");
       return;
     }
   } finally {
@@ -104,11 +124,19 @@ export async function runExtractor(config: Config, s3: S3Client): Promise<void> 
   }
 
   // 7. Upload images.db.tmp as images.db (local source path)
-  console.log('Uploading images.db to object storage...');
-  const { readFile: rf } = await import('node:fs/promises');
+  console.log(
+    `Uploading images.db to object storage: s3://${config.storageBucket}/${DB_KEY} ...`,
+  );
+  const { readFile: rf } = await import("node:fs/promises");
   const dbBuffer = await rf(TMP_DB_PATH);
-  await putObject(s3, config.storageBucket, DB_KEY, dbBuffer, 'application/octet-stream');
-  console.log('images.db uploaded successfully.');
+  await putObject(
+    s3,
+    config.storageBucket,
+    DB_KEY,
+    dbBuffer,
+    "application/octet-stream",
+  );
+  console.log("images.db uploaded successfully.");
 
   // 8. Cleanup
   for (const path of [TMP_DB_PATH, LOCAL_DB_PATH]) {
@@ -117,7 +145,7 @@ export async function runExtractor(config: Config, s3: S3Client): Promise<void> 
     }
   }
 
-  console.log('Extractor complete.');
+  console.log("Extractor complete.");
 }
 
 async function processLocalSource(
@@ -157,13 +185,19 @@ async function processLocalSource(
       }
 
       const { fullSize, thumbnail } = await processImage(buffer);
-      await putObject(s3, config.storageBucket, `images/${id}.jpg`, fullSize, 'image/jpeg');
+      await putObject(
+        s3,
+        config.storageBucket,
+        `images/${id}.jpg`,
+        fullSize,
+        "image/jpeg",
+      );
       await putObject(
         s3,
         config.storageBucket,
         `images/thumbnails/${id}.jpg`,
         thumbnail,
-        'image/jpeg',
+        "image/jpeg",
       );
       insertImage(db, id, relPath, exif);
       processed++;
@@ -181,10 +215,10 @@ async function processBucketSource(
   db: ReturnType<typeof openDatabase>,
 ): Promise<string[]> {
   console.log(`Scanning bucket ${config.storageBucket}/raw/ ...`);
-  const objects = await listObjects(s3, config.storageBucket, 'raw/');
+  const objects = await listObjects(s3, config.storageBucket, "raw/");
   const imageObjects = objects.filter((o) => {
     const lower = o.key.toLowerCase();
-    return SUPPORTED_EXTENSIONS.has(lower.slice(lower.lastIndexOf('.')));
+    return SUPPORTED_EXTENSIONS.has(lower.slice(lower.lastIndexOf(".")));
   });
   console.log(`Found ${imageObjects.length} image(s) in raw/.`);
 
@@ -195,7 +229,7 @@ async function processBucketSource(
   for (let i = 0; i < imageObjects.length; i++) {
     const obj = imageObjects[i]!;
     const id = generateIdFromS3(obj.key, obj.etag);
-    const filename = obj.key.split('/').pop() ?? obj.key;
+    const filename = obj.key.split("/").pop() ?? obj.key;
 
     console.log(`Processing ${i + 1}/${imageObjects.length}: ${obj.key}`);
 
@@ -220,13 +254,19 @@ async function processBucketSource(
       }
 
       const { fullSize, thumbnail } = await processImage(buffer);
-      await putObject(s3, config.storageBucket, `images/${id}.jpg`, fullSize, 'image/jpeg');
+      await putObject(
+        s3,
+        config.storageBucket,
+        `images/${id}.jpg`,
+        fullSize,
+        "image/jpeg",
+      );
       await putObject(
         s3,
         config.storageBucket,
         `images/thumbnails/${id}.jpg`,
         thumbnail,
-        'image/jpeg',
+        "image/jpeg",
       );
       insertImage(db, id, filename, exif);
       processed++;
