@@ -1,14 +1,14 @@
 import {
-  S3Client,
-  GetObjectCommand,
-  PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
   NoSuchKey,
-} from '@aws-sdk/client-s3';
-import { Readable } from 'node:stream';
-import type { Config } from './config.js';
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { Readable } from "node:stream";
+import type { Config } from "./config.js";
 
 export interface S3Object {
   key: string;
@@ -22,7 +22,12 @@ export function createS3Client(config: Config): S3Client {
     endpoint: config.storageEndpoint ?? undefined,
     ...(config.storageEndpoint ? { forcePathStyle: true } : {}),
     ...(config.storageAccessKey && config.storageSecretKey
-      ? { credentials: { accessKeyId: config.storageAccessKey, secretAccessKey: config.storageSecretKey } }
+      ? {
+          credentials: {
+            accessKeyId: config.storageAccessKey,
+            secretAccessKey: config.storageSecretKey,
+          },
+        }
       : {}),
   });
 }
@@ -33,11 +38,15 @@ export async function getObject(
   key: string,
 ): Promise<Buffer | null> {
   try {
-    const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const response = await s3.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
     if (!response.Body) return null;
     const chunks: Buffer[] = [];
     for await (const chunk of response.Body as Readable) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+      chunks.push(
+        Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array),
+      );
     }
     return Buffer.concat(chunks);
   } catch (err) {
@@ -53,7 +62,7 @@ export async function putObject(
   body: Buffer,
   contentType: string,
 ): Promise<void> {
-  await s3.send(
+  const result = await s3.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -61,6 +70,11 @@ export async function putObject(
       ContentType: contentType,
     }),
   );
+  if (result.$metadata.httpStatusCode !== 200) {
+    throw new Error(
+      `Failed to upload object s3://${bucket}/${key}. HTTP status code: ${result.$metadata.httpStatusCode}`,
+    );
+  }
 }
 
 export async function deleteObject(
@@ -68,7 +82,14 @@ export async function deleteObject(
   bucket: string,
   key: string,
 ): Promise<void> {
-  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  const result = await s3.send(
+    new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+  );
+  if (result.$metadata.httpStatusCode !== 204) {
+    throw new Error(
+      `Failed to delete object s3://${bucket}/${key}. HTTP status code: ${result.$metadata.httpStatusCode}`,
+    );
+  }
 }
 
 export async function listObjects(
@@ -92,7 +113,7 @@ export async function listObjects(
       if (obj.Key && obj.ETag) {
         objects.push({
           key: obj.Key,
-          etag: obj.ETag.replace(/"/g, ''),
+          etag: obj.ETag.replace(/"/g, ""),
           size: obj.Size ?? 0,
         });
       }
