@@ -9,10 +9,17 @@ terraform {
 
 dependency "storage" {
   config_path = "../storage"
+  mock_outputs = {
+    bucket_id = "my-app-bucket"
+  }
 }
 
 dependency "ecr" {
   config_path = "../ecr"
+  mock_outputs = {
+    backend_repo_arn = "arn:aws:ecr:us-east-1:123456789012:repository/backend"
+    extractor_repo_arn = "arn:aws:ecr:us-east-1:123456789012:repository/extractor"
+  }
 }
 
 inputs = {
