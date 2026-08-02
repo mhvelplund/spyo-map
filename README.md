@@ -119,7 +119,7 @@ npm run build --workspace=packages/extractor
 | `STORAGE_ACCESS_KEY`     | —           | Access key ID                                                       |
 | `STORAGE_SECRET_KEY`     | —           | Secret access key                                                   |
 | `STORAGE_REGION`         | `us-east-1` | AWS region (MinIO ignores this)                                     |
-| `IMAGES_BASE_URL`        | —           | Public base URL for images (e.g. `http://localhost:9000/spyro-map`) |
+| `IMAGES_BASE_URL`        | —           | Public base URL for images (e.g. `http://localhost:9000/spyo-map`) |
 | `DB_REFRESH_INTERVAL_MS` | `300000`    | DB re-download interval ms (`0` = startup only)                     |
 | `PORT`                   | `3001`      | HTTP port                                                           |
 

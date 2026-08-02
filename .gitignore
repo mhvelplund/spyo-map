@@ -31,8 +31,3 @@ images.db
 .worktrees/
 *.ignore.superpowers/
 .superpowers/
-
-# Terra*
-.terraform*
-.terragrunt*
-extract.sh

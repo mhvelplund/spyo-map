@@ -3,11 +3,11 @@ import BetterSqlite3 from "better-sqlite3";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
-import type { ImageRecord } from "@spyro-map/shared";
+import type { ImageRecord } from "@spyo-map/shared";
 import { config } from "../config.js";
 import { haversineKm } from "../utils.js";
 
-const DB_PATH = "/tmp/spyro-map-images.db";
+const DB_PATH = "/tmp/spyo-map-images.db";
 const DB_KEY = "images.db";
 
 function buildS3Client(): S3Client {

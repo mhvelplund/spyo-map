@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Spyro Map is a browser-based app that displays geo-tagged images on an interactive map (React + Leaflet/OpenStreetMap
+Spyo Map is a browser-based app that displays geo-tagged images on an interactive map (React + Leaflet/OpenStreetMap
 frontend, Fastify API backend, MinIO/S3 object storage). Photos are ingested by a one-shot extractor job that reads
 EXIF GPS data and writes a SQLite `images.db` to object storage; the backend downloads and serves that DB as JSON.
 

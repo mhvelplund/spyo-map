@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import type { ImageRecord } from '@spyro-map/shared';
+import type { ImageRecord } from '@spyo-map/shared';
 import { ApiClient } from '../src/services/ApiClient.js';
 
 const FIXTURE: ImageRecord = {

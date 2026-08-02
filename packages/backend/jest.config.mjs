@@ -4,7 +4,7 @@ const config = {
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^@spyro-map/shared$': '<rootDir>/../shared/src/types.ts',
+    '^@spyo-map/shared$': '<rootDir>/../shared/src/types.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testMatch: ['<rootDir>/tests/**/*.test.ts'],

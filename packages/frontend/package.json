@@ -1,5 +1,5 @@
 {
-  "name": "@spyro-map/frontend",
+  "name": "@spyo-map/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
-    "@spyro-map/shared": "*",
+    "@spyo-map/shared": "*",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "react": "^19.2.8",

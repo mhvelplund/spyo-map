@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import type { ImageRecord } from '@spyro-map/shared';
+import type { ImageRecord } from '@spyo-map/shared';
 import { computeNearbyGroup } from '../src/utils/nearbyGroup.js';
 
 function makeImage(id: string, lat: number, lng: number): ImageRecord {

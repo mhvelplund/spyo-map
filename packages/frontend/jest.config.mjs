@@ -8,7 +8,7 @@ const config = {
       preset: 'ts-jest/presets/default-esm',
       extensionsToTreatAsEsm: ['.ts', '.tsx'],
       moduleNameMapper: {
-        '^@spyro-map/shared$': '<rootDir>/../shared/src/types.ts',
+        '^@spyo-map/shared$': '<rootDir>/../shared/src/types.ts',
         '^\\.\\./config\\.js$': '<rootDir>/tests/__mocks__/config.ts',
         '^(\\.{1,2}/.*)\\.js$': '$1',
       },
@@ -23,7 +23,7 @@ const config = {
       preset: 'ts-jest/presets/default-esm',
       extensionsToTreatAsEsm: ['.ts', '.tsx'],
       moduleNameMapper: {
-        '^@spyro-map/shared$': '<rootDir>/../shared/src/types.ts',
+        '^@spyo-map/shared$': '<rootDir>/../shared/src/types.ts',
         '^\\.\\./config\\.js$': '<rootDir>/tests/__mocks__/config.ts',
         '^(\\.{1,2}/.*)\\.js$': '$1',
         '\\.css$': '<rootDir>/tests/__mocks__/styleMock.js',

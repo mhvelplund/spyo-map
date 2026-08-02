@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
-import type { ImageRecord } from '@spyro-map/shared';
+import type { ImageRecord } from '@spyo-map/shared';
 
 // Create mock functions
 const mockGetAll = jest.fn();

@@ -3,7 +3,7 @@ import { createS3Client } from './storage.js';
 import { runExtractor } from './extractor.js';
 
 async function main(): Promise<void> {
-  console.log('Spyro Map Extractor');
+  console.log('Spyo Map Extractor');
   console.log('===================');
 
   const config = loadConfig();
