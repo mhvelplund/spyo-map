@@ -1348,7 +1348,7 @@ The ordering invariant is preserved exactly — **metadata is committed before a
 - Consumes: `createD1Client`, `fetchExistingIds`, `upsertImages`, `ImageInsert`, `D1Client` from `./d1.js` (Task 6); `Config` from `./config.js`; the existing `getObject`, `putObject`, `deleteObject`, `listObjects` from `./storage.js`; `extractExif`, `processImage` from `./processor.js`.
 - Produces: `runExtractor(config: Config, s3: S3Client, d1: D1Client): Promise<void>` — note the added third parameter.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `packages/extractor/tests/extractor.test.ts`. This covers the orchestration contract that has no coverage today, which is where the regression risk lives.
 
@@ -1357,14 +1357,14 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import type { Config } from '../src/config.js';
 import type { D1Client, ImageInsert } from '../src/d1.js';
 
-const mockListObjects = jest.fn();
-const mockGetObject = jest.fn();
-const mockPutObject = jest.fn();
-const mockDeleteObject = jest.fn();
-const mockExtractExif = jest.fn();
-const mockProcessImage = jest.fn();
-const mockFetchExistingIds = jest.fn();
-const mockUpsertImages = jest.fn();
+const mockListObjects = jest.fn() as jest.Mock<any>;
+const mockGetObject = jest.fn() as jest.Mock<any>;
+const mockPutObject = jest.fn() as jest.Mock<any>;
+const mockDeleteObject = jest.fn() as jest.Mock<any>;
+const mockExtractExif = jest.fn() as jest.Mock<any>;
+const mockProcessImage = jest.fn() as jest.Mock<any>;
+const mockFetchExistingIds = jest.fn() as jest.Mock<any>;
+const mockUpsertImages = jest.fn() as jest.Mock<any>;
 
 jest.unstable_mockModule('../src/storage.js', () => ({
   listObjects: mockListObjects,
@@ -1512,12 +1512,12 @@ describe('runExtractor over the bucket source', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npm test --workspace=packages/extractor -- extractor`
 Expected: FAIL — `runExtractor` still takes two parameters and imports the deleted `./database.js`.
 
-- [ ] **Step 3: Rewrite `packages/extractor/src/extractor.ts`**
+- [x] **Step 3: Rewrite `packages/extractor/src/extractor.ts`**
 
 Keep `SUPPORTED_EXTENSIONS`, `generateIdFromS3`, `generateIdFromLocal`, and `collectLocalImages` exactly as they are. Delete `DB_KEY`, `TMP_DB_PATH`, `LOCAL_DB_PATH`, `downloadExistingDb`, and every `node:fs` import that only existed to juggle the database file. Replace the imports and the three functions below:
 
@@ -1692,7 +1692,7 @@ async function processBucketSource(
 }
 ```
 
-- [ ] **Step 4: Update `packages/extractor/src/index.ts`**
+- [x] **Step 4: Update `packages/extractor/src/index.ts`**
 
 ```typescript
 import { loadConfig } from './config.js';
@@ -1717,22 +1717,22 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 5: Check `packages/extractor/tests/storage.test.ts` for the region default**
+- [x] **Step 5: Check `packages/extractor/tests/storage.test.ts` for the region default**
 
 Run: `grep -n "us-east-1" packages/extractor/tests/storage.test.ts`
 If it matches, update those assertions to `auto`. If it does not, leave the file alone.
 
-- [ ] **Step 6: Run the extractor suite**
+- [x] **Step 6: Run the extractor suite**
 
 Run: `npm test --workspace=packages/extractor`
 Expected: PASS across `d1.test.ts`, `extractor.test.ts`, `processor.test.ts`, and `storage.test.ts`.
 
-- [ ] **Step 7: Build the extractor to confirm it still compiles**
+- [x] **Step 7: Build the extractor to confirm it still compiles**
 
 Run: `npm run build --workspace=packages/extractor`
 Expected: exit 0, `packages/extractor/dist/` populated.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
