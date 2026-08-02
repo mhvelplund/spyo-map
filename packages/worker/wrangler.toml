@@ -3,12 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-routes = [
-  { pattern = "spyo-map.isntall.net", custom_domain = true }
-]
+routes = [{ pattern = "spyo-map.isntall.net", custom_domain = true }]
 
 [vars]
-IMAGES_BASE_URL = "https://spyo-map-img.isntall.net"
+IMAGES_BASE_URL = "https://spyo-img.isntall.net"
 
 [assets]
 directory = "../frontend/dist"

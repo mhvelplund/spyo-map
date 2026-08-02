@@ -5,6 +5,6 @@ export interface Env {
   DB: D1Database;
   /** Static-assets binding declared in wrangler.toml */
   ASSETS: Fetcher;
-  /** Public base URL for image objects, e.g. https://spyo-map-img.isntall.net */
+  /** Public base URL for image objects, e.g. https://spyo-img.isntall.net */
   IMAGES_BASE_URL: string;
 }

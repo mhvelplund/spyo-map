@@ -1,15 +1,39 @@
 # Cloudflare Bootstrap
 
-One-time setup for the `spyo-map` Cloudflare deployment. Everything here is done once,
-by hand. Day-to-day deploys and ingestion run from GitHub Actions.
+One-time setup for the `spyo-map` Cloudflare deployment. Everything here is done once, by hand. Day-to-day deploys and
+ingestion run from GitHub Actions.
 
-Prerequisites: a Cloudflare account, and `isntall.net` added to it as a zone with its
-nameservers delegated. Confirm delegation before starting — custom domains cannot be
-attached to a zone that is not active.
+Prerequisites: a Cloudflare account, and the subdomain `isntall.net` added to it as a zone with delegation from the
+parent `isntall.net` zone active. Confirm delegation before starting — custom domains cannot be attached to a zone that
+is not active.
 
 ```bash
 npx wrangler login
 ```
+
+## Delegating the subdomain
+
+`isntall.net` itself stays on its existing DNS provider; only the `isntall.net` subdomain moves to Cloudflare. This is a
+partial (subdomain) zone delegation, not a full nameserver switch:
+
+1. In the Cloudflare dashboard: **Add a domain**, enter `isntall.net`, and choose it as a new zone. Cloudflare will
+   offer two `NS` records (e.g. `xxx.ns.cloudflare.com`, `yyy.ns.cloudflare.com`) for this zone.
+2. At the DNS provider that hosts the parent `isntall.net` zone, add an `NS` record delegating the `spyo-map` subdomain
+   to those two Cloudflare nameservers:
+
+   ```plaintext
+   isntall.net.  NS  xxx.ns.cloudflare.com.
+   isntall.net.  NS  yyy.ns.cloudflare.com.
+   ```
+
+3. Wait for Cloudflare to detect the delegation (usually a few minutes; the zone status flips from **Pending** to
+   **Active**). Verify with:
+
+   ```bash
+   dig NS isntall.net
+   ```
+
+   Expect the two Cloudflare nameservers in the answer.
 
 ## 1. Create the R2 bucket
 
@@ -19,16 +43,15 @@ npx wrangler r2 bucket create spyo-map
 
 ## 2. Attach the images custom domain
 
-In the dashboard: **R2 → spyo-map → Settings → Public access → Custom domains → Connect
-domain**, and enter `spyo-map-img.isntall.net`. Cloudflare creates the DNS record and
-issues the certificate.
+In the dashboard: **R2 → spyo-map → Settings → Public access → Custom domains → Connect domain**, and enter
+`spyo-img.isntall.net`. Cloudflare creates the DNS record and issues the certificate.
 
 Do **not** enable the `r2.dev` subdomain. It is rate-limited and not meant for production.
 
 Verify once the certificate is live:
 
 ```bash
-curl -I https://spyo-map-img.isntall.net/images/thumbnails/anything.jpg
+curl -I https://spyo-img.isntall.net/images/thumbnails/anything.jpg
 ```
 
 Expect 404 (the bucket is empty) rather than a TLS or DNS error.
@@ -39,8 +62,8 @@ Expect 404 (the bucket is empty) rather than a TLS or DNS error.
 npx wrangler d1 create spyo-map
 ```
 
-Copy the `database_id` from the output into `packages/worker/wrangler.toml`, replacing
-`REPLACE_WITH_D1_DATABASE_ID`. Commit that change — the id is not a secret.
+Copy the `database_id` from the output into `packages/worker/wrangler.toml`, replacing `REPLACE_WITH_D1_DATABASE_ID`.
+Commit that change — the id is not a secret.
 
 ## 4. Apply the schema
 
@@ -59,11 +82,11 @@ Expect a row for `images`.
 
 ## 5. Create R2 S3-compatible credentials
 
-Dashboard: **R2 → Manage R2 API Tokens → Create API token**. Permission **Object Read &
-Write**, scoped to the `spyo-map` bucket only.
+Dashboard: **R2 → Manage R2 API Tokens → Create API token**. Permission **Object Read & Write**, scoped to the
+`spyo-map` bucket only.
 
-Record the Access Key ID, the Secret Access Key, and the S3 endpoint
-(`https://<account-id>.r2.cloudflarestorage.com`). The secret is shown once.
+Record the Access Key ID, the Secret Access Key, and the S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
+The secret is shown once.
 
 ## 6. Create a Cloudflare API token
 
@@ -81,7 +104,7 @@ Record the token. It is shown once.
 **Settings → Secrets and variables → Actions → New repository secret**:
 
 | Secret                  | Value                                           |
-| ----------------------- | ----------------------------------------------- |
+|-------------------------|-------------------------------------------------|
 | `CLOUDFLARE_ACCOUNT_ID` | Account ID from the dashboard sidebar           |
 | `CLOUDFLARE_API_TOKEN`  | Token from step 6                               |
 | `D1_DATABASE_ID`        | `database_id` from step 3                       |
@@ -97,8 +120,8 @@ npm run build --workspace=packages/frontend
 npx wrangler deploy --config packages/worker/wrangler.toml
 ```
 
-The custom domain `spyo-map.isntall.net` is created by the `routes` entry in
-`wrangler.toml` on first deploy. Certificate issuance takes a few minutes.
+The custom domain `spyo-map.isntall.net` is created by the `routes` entry in `wrangler.toml` on first deploy.
+Certificate issuance takes a few minutes.
 
 ```bash
 curl https://spyo-map.isntall.net/api/health
@@ -108,8 +131,8 @@ Expect `{"status":"ok"}`.
 
 ## Uploading source photos
 
-Photos are ingested from the `raw/` prefix of the bucket. Upload with rclone or the
-dashboard, then run the **Ingest Photos** workflow.
+Photos are ingested from the `raw/` prefix of the bucket. Upload with rclone or the dashboard, then run the **Ingest
+Photos** workflow.
 
 ```bash
 npx wrangler r2 object put spyo-map/raw/IMG_1234.jpg --file ./IMG_1234.jpg

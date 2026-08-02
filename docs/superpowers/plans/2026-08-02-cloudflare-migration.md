@@ -1,35 +1,44 @@
 # Cloudflare Migration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
+> superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move the whole application off AWS onto Cloudflare's free tier — a single Worker serving the React SPA and a D1-backed API, images on R2 — and rename the project from `spyro-map` to `spyo-map`.
+**Goal:** Move the whole application off AWS onto Cloudflare's free tier — a single Worker serving the React SPA and a
+D1-backed API, images on R2 — and rename the project from `spyro-map` to `spyo-map`.
 
-**Architecture:** One Worker serves the built SPA as static assets and handles `/api/*` against a D1 database. Image bytes are served directly from an R2 bucket on its own custom domain, never through the Worker. Ingestion runs in GitHub Actions: the existing extractor writes processed images to R2 over the S3-compatible API and upserts metadata to D1 over Cloudflare's REST API.
+**Architecture:** One Worker serves the built SPA as static assets and handles `/api/*` against a D1 database. Image
+bytes are served directly from an R2 bucket on its own custom domain, never through the Worker. Ingestion runs in GitHub
+Actions: the existing extractor writes processed images to R2 over the S3-compatible API and upserts metadata to D1 over
+Cloudflare's REST API.
 
-**Tech Stack:** Cloudflare Workers (static assets + `fetch` handler), Cloudflare D1, Cloudflare R2, Wrangler, React 19 + Vite 7 + Leaflet, TypeScript 5.9 strict, Jest 29 + ts-jest in ESM mode, GitHub Actions.
+**Tech Stack:** Cloudflare Workers (static assets + `fetch` handler), Cloudflare D1, Cloudflare R2, Wrangler, React 19 +
+Vite 7 + Leaflet, TypeScript 5.9 strict, Jest 29 + ts-jest in ESM mode, GitHub Actions.
 
 **Spec:** `docs/superpowers/specs/2026-08-02-cloudflare-migration-design.md`
 
 ## Global Constraints
 
-- **Naming:** the project is `spyo-map` (one `r`), never `spyro-map`. Workspace scope is `@spyo-map/*`. Prose name is "Spyo Map".
-- **Domains:** app at `https://spyo-map.isntall.net`, images at `https://spyo-map-img.isntall.net`.
+- **Naming:** the project is `spyo-map` (one `r`), never `spyro-map`. Workspace scope is `@spyo-map/*`. Prose name is
+  "Spyo Map".
+- **Domains:** app at `https://spyo-map.isntall.net`, images at `https://spyo-img.isntall.net`.
 - **Cloudflare resource names:** R2 bucket `spyo-map`, D1 database `spyo-map`.
 - **Node:** 22. **TypeScript:** strict mode, all packages.
-- **Tests:** Jest 29 + ts-jest, ESM mode, run via `node --experimental-vm-modules`. No second test runner — do not add Vitest or `@cloudflare/vitest-pool-workers`.
+- **Tests:** Jest 29 + ts-jest, ESM mode, run via `node --experimental-vm-modules`. No second test runner — do not add
+  Vitest or `@cloudflare/vitest-pool-workers`.
 - **Test location:** `packages/<pkg>/tests/**/*.test.ts`. New logic ships with tests in the same commit.
-- **Commits:** conventional, using exactly `feat`, `chore`, or `feat!`. Never commit to `main`; this work happens on the `cloudflare` branch.
+- **Commits:** conventional, using exactly `feat`, `chore`, or `feat!`. Never commit to `main`; this work happens on the
+  `cloudflare` branch.
 - **AWS:** being removed permanently. Never add an AWS dependency, reference, or fallback back in.
 - **Docker:** removed permanently. Do not add Dockerfiles or compose files.
 - **`npm test` at the repo root must pass** at the end of every task.
 
----
-
 ### Task 1: Rename the workspace from `spyro-map` to `spyo-map`
 
-Mechanical, repo-wide, and must be atomic — every import of `@spyro-map/shared` breaks until all of them change together.
+Mechanical, repo-wide, and must be atomic — every import of `@spyro-map/shared` breaks until all of them change
+together.
 
 **Files:**
+
 - Modify: `package.json:2`
 - Modify: `packages/shared/package.json:2`
 - Modify: `packages/backend/package.json:2,15`
@@ -52,6 +61,7 @@ Mechanical, repo-wide, and must be atomic — every import of `@spyro-map/shared
 - Modify: `README.md:122`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: the package scope `@spyo-map/shared`, imported by every other package for the rest of the plan.
 
@@ -63,7 +73,8 @@ grep -rn "spyro-map\|Spyro" --exclude-dir=node_modules --exclude-dir=.git \
   | grep -v package-lock.json
 ```
 
-Expected: 30 lines across the files listed above. If a file appears that is not in the list, include it too — the list was captured before this task ran.
+Expected: 30 lines across the files listed above. If a file appears that is not in the list, include it too — the list
+was captured before this task ran.
 
 Note `docs/` is excluded deliberately: the spec is a historical document and keeps its original wording.
 
@@ -88,13 +99,13 @@ Expected: no output.
 
 - [x] **Step 4: Reinstall so the workspace symlinks point at the new scope**
 
-Run: `rm -rf node_modules && npm install`
-Expected: completes without `ENOWORKSPACES` or unresolved `@spyo-map/shared` errors. `package-lock.json` is rewritten — that is expected and should be committed.
+Run: `rm -rf node_modules && npm install` Expected: completes without `ENOWORKSPACES` or unresolved `@spyo-map/shared`
+errors. `package-lock.json` is rewritten — that is expected and should be committed.
 
 - [x] **Step 5: Run the full test suite**
 
-Run: `npm test`
-Expected: PASS in all packages. If any suite fails with "Cannot find module `@spyro-map/shared`", a `jest.config.mjs` `moduleNameMapper` was missed — fix and rerun.
+Run: `npm test` Expected: PASS in all packages. If any suite fails with "Cannot find module `@spyro-map/shared`", a
+`jest.config.mjs` `moduleNameMapper` was missed — fix and rerun.
 
 - [x] **Step 6: Commit**
 
@@ -103,13 +114,13 @@ git add -A
 git commit -m "chore: rename spyro-map to spyo-map across the workspace"
 ```
 
----
-
 ### Task 2: Remove AWS infrastructure, Docker, and the AWS deploy workflow
 
-Deletion only. Nothing here is replaced yet, so the repo has no deployment path between this task and Task 11 — that is intended.
+Deletion only. Nothing here is replaced yet, so the repo has no deployment path between this task and Task 11 — that is
+intended.
 
 **Files:**
+
 - Delete: `infra/` (whole tree, including `infra/bootstrap.sh`)
 - Delete: `docker-compose.yml`
 - Delete: `packages/backend/Dockerfile`
@@ -124,13 +135,14 @@ Deletion only. Nothing here is replaced yet, so the repo has no deployment path 
 - Modify: `mise.toml` (drop the `terraform` and `terragrunt` pins)
 
 **Interfaces:**
+
 - Consumes: Task 1's rename (so deleted files don't reappear in a later rename sweep).
 - Produces: nothing.
 
 - [x] **Step 1: Check whether `scripts/validate-build.js` depends on `deploy.config.js`**
 
-Run: `grep -n "deploy.config" scripts/validate-build.js`
-If it matches, delete the script too. If it does not, keep it and drop it from the delete list.
+Run: `grep -n "deploy.config" scripts/validate-build.js` If it matches, delete the script too. If it does not, keep it
+and drop it from the delete list.
 
 - [x] **Step 2: Check whether anything else references the files being deleted**
 
@@ -140,7 +152,8 @@ grep -rn "docker-compose\|Dockerfile\|deploy.config\|infra/\|terragrunt\|terrafo
   --exclude-dir=docs . | grep -v package-lock.json
 ```
 
-Expected matches only in `README.md`, `CLAUDE.md`, `.gitignore`, and `mise.toml`. `README.md` and `CLAUDE.md` are rewritten in Task 12 — leave them for now and note that Task 12 depends on this.
+Expected matches only in `README.md`, `CLAUDE.md`, `.gitignore`, and `mise.toml`. `README.md` and `CLAUDE.md` are
+rewritten in Task 12 — leave them for now and note that Task 12 depends on this.
 
 - [x] **Step 3: Delete**
 
@@ -158,7 +171,7 @@ rm -f extract.sh
 
 Remove these final lines:
 
-```
+```plaintext
 # Terra*
 .terraform*
 .terragrunt*
@@ -171,8 +184,7 @@ Remove the `terraform` and `terragrunt` entries from `[tools]`. Leave `node` and
 
 - [x] **Step 6: Verify the workspace still builds and tests**
 
-Run: `npm test`
-Expected: PASS. Nothing deleted was imported by source code.
+Run: `npm test` Expected: PASS. Nothing deleted was imported by source code.
 
 - [x] **Step 7: Commit**
 
@@ -181,15 +193,17 @@ git add -A
 git commit -m "chore: remove AWS infrastructure, Docker, and the AWS deploy workflow"
 ```
 
----
-
 ### Task 3: Convert `packages/backend` into `packages/worker` with a D1-backed query layer
 
-The rename and the storage-layer swap are one deliverable: the package cannot compile with Fastify removed and `better-sqlite3` still in place.
+The rename and the storage-layer swap are one deliverable: the package cannot compile with Fastify removed and
+`better-sqlite3` still in place.
 
-The three query helpers already take their database as a parameter and are pure apart from it, so this is a narrow change: the first parameter becomes a `D1Database`, the functions become `async`, and the SQL text is unchanged. `rowToRecord` and `haversineKm` are untouched.
+The three query helpers already take their database as a parameter and are pure apart from it, so this is a narrow
+change: the first parameter becomes a `D1Database`, the functions become `async`, and the SQL text is unchanged.
+`rowToRecord` and `haversineKm` are untouched.
 
 **Files:**
+
 - Rename: `packages/backend/` → `packages/worker/` (via `git mv`)
 - Modify: `packages/worker/package.json`
 - Modify: `packages/worker/tsconfig.json`
@@ -204,13 +218,14 @@ The three query helpers already take their database as a parameter and are pure 
 - Keep unchanged: `packages/worker/src/utils.ts`
 
 **Interfaces:**
+
 - Consumes: `ImageRecord` from `@spyo-map/shared`; `haversineKm` from `./utils.js`.
 - Produces:
   - `interface Env { DB: D1Database; ASSETS: Fetcher; IMAGES_BASE_URL: string }` from `src/env.ts`
   - `rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord`
   - `queryAllImages(db: D1Database, baseUrl: string): Promise<ImageRecord[]>`
-  - `queryImageById(db: D1Database, id: string, baseUrl: string): Promise<ImageRecord | null>`
-  - `queryNearbyImages(db: D1Database, id: string, lat: number, lon: number, radiusKm: number, baseUrl: string): Promise<ImageRecord[]>`
+  - `queryImageById(db: D1Database, id: string, baseUrl: string): Promise<ImageRecord | null>` -
+    `queryNearbyImages(db: D1Database, id: string, lat: number, lon: number, radiusKm: number, baseUrl: string): Promise<ImageRecord[]>`
 
   Task 4 calls all four.
 
@@ -251,7 +266,8 @@ rmdir packages/worker/src/routes
 }
 ```
 
-`fastify`, `@fastify/cors`, `better-sqlite3`, `@types/better-sqlite3`, `@aws-sdk/client-s3`, `@types/node`, and `tsx` are all gone. There is no `build` script — `wrangler deploy` bundles the Worker itself.
+`fastify`, `@fastify/cors`, `better-sqlite3`, `@types/better-sqlite3`, `@aws-sdk/client-s3`, `@types/node`, and `tsx`
+are all gone. There is no `build` script — `wrangler deploy` bundles the Worker itself.
 
 - [x] **Step 3: Rewrite `packages/worker/tsconfig.json`**
 
@@ -276,7 +292,8 @@ rmdir packages/worker/src/routes
 }
 ```
 
-`outDir` is gone because the Worker is bundled by Wrangler, not `tsc`. `types` replaces `@types/node` — the Workers runtime is not Node.
+`outDir` is gone because the Worker is bundled by Wrangler, not `tsc`. `types` replaces `@types/node` — the Workers
+runtime is not Node.
 
 - [x] **Step 4: Create `packages/worker/src/env.ts`**
 
@@ -288,14 +305,15 @@ export interface Env {
   DB: D1Database;
   /** Static-assets binding declared in wrangler.toml */
   ASSETS: Fetcher;
-  /** Public base URL for image objects, e.g. https://spyo-map-img.isntall.net */
+  /** Public base URL for image objects, e.g. https://spyo-img.isntall.net */
   IMAGES_BASE_URL: string;
 }
 ```
 
 - [x] **Step 5: Write the failing tests**
 
-Create `packages/worker/tests/database.test.ts`. The fake mimics D1's real shape: `prepare(sql)` returns a statement, `bind(...params)` returns the same statement, and `all()` resolves to `{ results }`.
+Create `packages/worker/tests/database.test.ts`. The fake mimics D1's real shape: `prepare(sql)` returns a statement,
+`bind(...params)` returns the same statement, and `all()` resolves to `{ results }`.
 
 ```typescript
 import { describe, it, expect } from '@jest/globals';
@@ -438,12 +456,14 @@ describe('queryNearbyImages', () => {
 
 - [x] **Step 6: Run the tests to verify they fail**
 
-Run: `npm test --workspace=packages/worker`
-Expected: FAIL — `packages/worker/src/services/database.ts` still imports `better-sqlite3` and `@aws-sdk/client-s3`, which are no longer installed.
+Run: `npm test --workspace=packages/worker` Expected: FAIL — `packages/worker/src/services/database.ts` still imports
+`better-sqlite3` and `@aws-sdk/client-s3`, which are no longer installed.
 
 - [x] **Step 7: Rewrite `packages/worker/src/services/database.ts`**
 
-Replace the file entirely. Everything above the `// --- Exported testable helpers` marker in the old file (the S3 client, `downloadDb`, `openDb`, `initDatabase`, `reloadDatabase`, `getDb`, the module-level `db` singleton) is deleted, as are the three no-argument public wrappers at the bottom.
+Replace the file entirely. Everything above the `// --- Exported testable helpers` marker in the old file (the S3
+client, `downloadDb`, `openDb`, `initDatabase`, `reloadDatabase`, `getDb`, the module-level `db` singleton) is deleted,
+as are the three no-argument public wrappers at the bottom.
 
 ```typescript
 import type { D1Database } from "@cloudflare/workers-types";
@@ -519,23 +539,24 @@ export async function queryNearbyImages(
 
 - [x] **Step 8: Update `packages/worker/jest.config.mjs`**
 
-Only the `moduleNameMapper` needs a new entry so the fake's type import resolves at transform time. Add to the existing map:
+Only the `moduleNameMapper` needs a new entry so the fake's type import resolves at transform time. Add to the existing
+map:
 
 ```javascript
     '^@cloudflare/workers-types$': '<rootDir>/../../node_modules/@cloudflare/workers-types/index.d.ts',
 ```
 
-If Jest still errors on that import, delete the mapping instead and change the test file's import to a local type alias — `isolatedModules: true` erases types, so the import exists only to satisfy the editor.
+If Jest still errors on that import, delete the mapping instead and change the test file's import to a local type alias
+— `isolatedModules: true` erases types, so the import exists only to satisfy the editor.
 
 - [x] **Step 9: Install the new dependency set**
 
-Run: `npm install`
-Expected: `fastify`, `better-sqlite3`, and `@aws-sdk/client-s3` disappear from `packages/worker`; `wrangler` and `@cloudflare/workers-types` appear.
+Run: `npm install` Expected: `fastify`, `better-sqlite3`, and `@aws-sdk/client-s3` disappear from `packages/worker`;
+`wrangler` and `@cloudflare/workers-types` appear.
 
 - [x] **Step 10: Run the tests to verify they pass**
 
-Run: `npm test --workspace=packages/worker`
-Expected: PASS, 11 tests.
+Run: `npm test --workspace=packages/worker` Expected: PASS, 11 tests.
 
 - [x] **Step 11: Commit**
 
@@ -544,29 +565,31 @@ git add -A
 git commit -m "feat!: replace the Fastify backend with a D1-backed worker query layer"
 ```
 
----
-
 ### Task 4: Worker `fetch` handler and API router
 
 **Files:**
+
 - Create: `packages/worker/src/router.ts`
 - Create: `packages/worker/src/index.ts`
 - Create: `packages/worker/tests/router.test.ts`
 
 **Interfaces:**
-- Consumes: `Env` from `src/env.ts`; `queryAllImages`, `queryImageById`, `queryNearbyImages` from `src/services/database.js` (Task 3).
+
+- Consumes: `Env` from `src/env.ts`; `queryAllImages`, `queryImageById`, `queryNearbyImages` from
+  `src/services/database.js` (Task 3).
 - Produces:
-  - `handleApiRequest(request: Request, env: Env): Promise<Response>` from `src/router.ts` — Task 5's `wrangler.toml` points its `main` at `src/index.ts`, which wraps this.
+  - `handleApiRequest(request: Request, env: Env): Promise<Response>` from `src/router.ts` — Task 5's `wrangler.toml`
+    points its `main` at `src/index.ts`, which wraps this.
 
 **Route contract** (unchanged from the Fastify implementation, except that `POST /api/reload` no longer exists):
 
-| Method + path                        | Response                                        |
-| ------------------------------------ | ----------------------------------------------- |
-| `GET /api/health`                    | 200 `{ "status": "ok" }`                        |
-| `GET /api/images`                    | 200 `ImageRecord[]`                             |
-| `GET /api/images/:id`                | 200 `ImageRecord`, or 404 `{ "error": "Not found" }` |
+| Method + path                        | Response                                                                                                                                       |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GET /api/health`                    | 200 `{ "status": "ok" }`                                                                                                                       |
+| `GET /api/images`                    | 200 `ImageRecord[]`                                                                                                                            |
+| `GET /api/images/:id`                | 200 `ImageRecord`, or 404 `{ "error": "Not found" }`                                                                                           |
 | `GET /api/images/:id/nearby?radius=` | 200 `ImageRecord[]`; 404 if the id is unknown; 400 `{ "error": "Invalid radius" }` if `radius` is not a non-negative number. Default radius 1. |
-| anything else under `/api/`          | 404 `{ "error": "Not found" }`                  |
+| anything else under `/api/`          | 404 `{ "error": "Not found" }`                                                                                                                 |
 
 - [x] **Step 1: Write the failing tests**
 
@@ -717,8 +740,7 @@ describe('unknown API routes', () => {
 
 - [x] **Step 2: Run the tests to verify they fail**
 
-Run: `npm test --workspace=packages/worker -- router`
-Expected: FAIL — `Cannot find module '../src/router.js'`.
+Run: `npm test --workspace=packages/worker -- router` Expected: FAIL — `Cannot find module '../src/router.js'`.
 
 - [x] **Step 3: Write `packages/worker/src/router.ts`**
 
@@ -794,7 +816,8 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
 
 - [x] **Step 4: Write `packages/worker/src/index.ts`**
 
-Assets are served through the `ASSETS` binding rather than by Wrangler's automatic asset routing, so `/api/*` is unambiguously the Worker's and SPA fallback is unambiguously the binding's.
+Assets are served through the `ASSETS` binding rather than by Wrangler's automatic asset routing, so `/api/*` is
+unambiguously the Worker's and SPA fallback is unambiguously the binding's.
 
 ```typescript
 import type { Env } from "./env.js";
@@ -817,13 +840,12 @@ export default {
 
 - [x] **Step 5: Run the tests to verify they pass**
 
-Run: `npm test --workspace=packages/worker`
-Expected: PASS, 25 tests across both files (11 from `database.test.ts`, 14 from `router.test.ts`).
+Run: `npm test --workspace=packages/worker` Expected: PASS, 25 tests across both files (11 from `database.test.ts`, 14
+from `router.test.ts`).
 
 - [x] **Step 6: Typecheck**
 
-Run: `npm run typecheck --workspace=packages/worker`
-Expected: no output, exit 0.
+Run: `npm run typecheck --workspace=packages/worker` Expected: no output, exit 0.
 
 - [x] **Step 7: Commit**
 
@@ -832,23 +854,25 @@ git add -A
 git commit -m "feat: add the worker fetch handler and API router"
 ```
 
----
-
 ### Task 5: Wrangler configuration and the D1 schema migration
 
 **Files:**
+
 - Create: `packages/worker/wrangler.toml`
 - Create: `packages/worker/migrations/0001_create_images.sql`
 - Create: `packages/worker/.gitignore`
 - Modify: `.gitignore` (repo root)
 
 **Interfaces:**
+
 - Consumes: `packages/worker/src/index.ts` (Task 4) as the Worker entrypoint.
-- Produces: the bindings `DB`, `ASSETS`, and the var `IMAGES_BASE_URL` that `Env` (Task 3) declares; the `images` table schema that Task 6's extractor writes to.
+- Produces: the bindings `DB`, `ASSETS`, and the var `IMAGES_BASE_URL` that `Env` (Task 3) declares; the `images` table
+  schema that Task 6's extractor writes to.
 
 - [x] **Step 1: Create the schema migration**
 
-`packages/worker/migrations/0001_create_images.sql` — identical to the schema the old `packages/extractor/src/database.ts` created at runtime:
+`packages/worker/migrations/0001_create_images.sql` — identical to the schema the old
+`packages/extractor/src/database.ts` created at runtime:
 
 ```sql
 CREATE TABLE IF NOT EXISTS images (
@@ -876,7 +900,8 @@ CREATE INDEX IF NOT EXISTS idx_timestamp ON images(timestamp);
 
 - [x] **Step 2: Create `packages/worker/wrangler.toml`**
 
-`database_id` is filled in during the bootstrap in Task 10; leave the placeholder string exactly as written so it is obvious when it has not been set.
+`database_id` is filled in during the bootstrap in Task 10; leave the placeholder string exactly as written so it is
+obvious when it has not been set.
 
 ```toml
 name = "spyo-map"
@@ -889,7 +914,7 @@ routes = [
 ]
 
 [vars]
-IMAGES_BASE_URL = "https://spyo-map-img.isntall.net"
+IMAGES_BASE_URL = "https://spyo-img.isntall.net"
 
 [assets]
 directory = "../frontend/dist"
@@ -910,14 +935,15 @@ migrations_dir = "migrations"
 
 Create `packages/worker/.gitignore`:
 
-```
+```plaintext
 .wrangler/
 ```
 
 - [x] **Step 4: Verify the config parses and the Worker bundles**
 
-Run: `npx wrangler deploy --dry-run --config packages/worker/wrangler.toml`
-Expected: reports the bundled Worker size and the `DB` / `ASSETS` bindings, then exits without uploading. It will warn that `../frontend/dist` does not exist unless the frontend has been built — build it first with `npm run build` if so.
+Run: `npx wrangler deploy --dry-run --config packages/worker/wrangler.toml` Expected: reports the bundled Worker size
+and the `DB` / `ASSETS` bindings, then exits without uploading. It will warn that `../frontend/dist` does not exist
+unless the frontend has been built — build it first with `npm run build` if so.
 
 A `database_id` error at this stage is expected and fine; the dry run still validates the rest.
 
@@ -928,13 +954,13 @@ git add -A
 git commit -m "feat: add wrangler config and the D1 schema migration"
 ```
 
----
-
 ### Task 6: Extractor — D1 HTTP client
 
-The extractor runs in Node (GitHub Actions), not in a Worker, so it has no D1 binding. It talks to D1 over Cloudflare's REST API instead.
+The extractor runs in Node (GitHub Actions), not in a Worker, so it has no D1 binding. It talks to D1 over Cloudflare's
+REST API instead.
 
 **Files:**
+
 - Create: `packages/extractor/src/d1.ts`
 - Create: `packages/extractor/tests/d1.test.ts`
 - Delete: `packages/extractor/src/database.ts`
@@ -943,6 +969,7 @@ The extractor runs in Node (GitHub Actions), not in a Worker, so it has no D1 bi
 - Modify: `packages/extractor/package.json`
 
 **Interfaces:**
+
 - Consumes: `ExifData` from `./processor.js`.
 - Produces, from `src/d1.ts` — Task 7 calls all of these:
   - `interface D1Client { query(sql: string, params?: unknown[]): Promise<Array<Record<string, unknown>>> }`
@@ -950,9 +977,13 @@ The extractor runs in Node (GitHub Actions), not in a Worker, so it has no D1 bi
   - `fetchExistingIds(client: D1Client): Promise<Set<string>>`
   - `interface ImageInsert { id: string; path: string; exif: ExifData }`
   - `upsertImages(client: D1Client, rows: ImageInsert[]): Promise<void>`
-- Also produces, from `src/config.ts`: `Config` gains `cloudflareAccountId: string`, `cloudflareApiToken: string`, `d1DatabaseId: string` — all required.
+- Also produces, from `src/config.ts`: `Config` gains `cloudflareAccountId: string`, `cloudflareApiToken: string`,
+  `d1DatabaseId: string` — all required.
 
-**API shape.** `POST https://api.cloudflare.com/client/v4/accounts/{accountId}/d1/database/{databaseId}/query` with header `Authorization: Bearer {token}` and body `{ "sql": "...", "params": [...] }`. A success response is `{ "success": true, "result": [ { "results": [...], "success": true } ] }`; a failure is `{ "success": false, "errors": [ { "code": n, "message": "..." } ] }`.
+**API shape.** `POST https://api.cloudflare.com/client/v4/accounts/{accountId}/d1/database/{databaseId}/query` with
+header `Authorization: Bearer {token}` and body `{ "sql": "...", "params": [...] }`. A success response is
+`{ "success": true, "result": [ { "results": [...], "success": true } ] }`; a failure is
+`{ "success": false, "errors": [ { "code": n, "message": "..." } ] }`.
 
 - [x] **Step 1: Write the failing tests**
 
@@ -1148,12 +1179,12 @@ describe('upsertImages', () => {
 
 - [x] **Step 2: Run the tests to verify they fail**
 
-Run: `npm test --workspace=packages/extractor -- d1`
-Expected: FAIL — `Cannot find module '../src/d1.js'`.
+Run: `npm test --workspace=packages/extractor -- d1` Expected: FAIL — `Cannot find module '../src/d1.js'`.
 
 - [x] **Step 3: Add the Cloudflare fields to `packages/extractor/src/config.ts`**
 
-Extend the interface and `loadConfig`. `requireEnv` already exists in the file; reuse it. Change the `storageRegion` default from `'us-east-1'` to `'auto'` — R2's region is always `auto`.
+Extend the interface and `loadConfig`. `requireEnv` already exists in the file; reuse it. Change the `storageRegion`
+default from `'us-east-1'` to `'auto'` — R2's region is always `auto`.
 
 ```typescript
 export interface Config {
@@ -1314,14 +1345,15 @@ They are replaced by `d1.ts` and `d1.test.ts`. Task 7 removes the last imports o
 
 - [x] **Step 6: Drop `better-sqlite3` from the extractor**
 
-In `packages/extractor/package.json`, remove `better-sqlite3` from `dependencies` and `@types/better-sqlite3` from `devDependencies`. Keep `sharp`, `exifr`, and `@aws-sdk/client-s3`.
+In `packages/extractor/package.json`, remove `better-sqlite3` from `dependencies` and `@types/better-sqlite3` from
+`devDependencies`. Keep `sharp`, `exifr`, and `@aws-sdk/client-s3`.
 
 Run: `npm install`
 
 - [x] **Step 7: Run the tests to verify they pass**
 
-Run: `npm test --workspace=packages/extractor -- d1`
-Expected: PASS, 14 tests. The extractor's other suites will fail to compile until Task 7 — that is expected and why this step scopes to `d1`.
+Run: `npm test --workspace=packages/extractor -- d1` Expected: PASS, 14 tests. The extractor's other suites will fail to
+compile until Task 7 — that is expected and why this step scopes to `d1`.
 
 - [x] **Step 8: Commit**
 
@@ -1330,27 +1362,33 @@ git add -A
 git commit -m "feat: add a D1 HTTP client to the extractor"
 ```
 
----
-
 ### Task 7: Extractor — write to D1 and R2 instead of SQLite and S3
 
-`runExtractor` currently downloads `images.db`, opens it with `better-sqlite3`, inserts row by row, uploads the file, and then deletes the consumed `raw/` objects. It becomes: fetch the known ids, accumulate new rows in memory, upsert them, then delete.
+`runExtractor` currently downloads `images.db`, opens it with `better-sqlite3`, inserts row by row, uploads the file,
+and then deletes the consumed `raw/` objects. It becomes: fetch the known ids, accumulate new rows in memory, upsert
+them, then delete.
 
-The ordering invariant is preserved exactly — **metadata is committed before any `raw/` object is deleted**, so a failure never loses a photo.
+The ordering invariant is preserved exactly — **metadata is committed before any `raw/` object is deleted**, so a
+failure never loses a photo.
 
 **Files:**
+
 - Modify: `packages/extractor/src/extractor.ts`
 - Modify: `packages/extractor/src/index.ts`
 - Modify: `packages/extractor/tests/storage.test.ts` (only if it asserts the old region default)
 - Create: `packages/extractor/tests/extractor.test.ts`
 
 **Interfaces:**
-- Consumes: `createD1Client`, `fetchExistingIds`, `upsertImages`, `ImageInsert`, `D1Client` from `./d1.js` (Task 6); `Config` from `./config.js`; the existing `getObject`, `putObject`, `deleteObject`, `listObjects` from `./storage.js`; `extractExif`, `processImage` from `./processor.js`.
+
+- Consumes: `createD1Client`, `fetchExistingIds`, `upsertImages`, `ImageInsert`, `D1Client` from `./d1.js` (Task 6);
+  `Config` from `./config.js`; the existing `getObject`, `putObject`, `deleteObject`, `listObjects` from `./storage.js`;
+  `extractExif`, `processImage` from `./processor.js`.
 - Produces: `runExtractor(config: Config, s3: S3Client, d1: D1Client): Promise<void>` — note the added third parameter.
 
 - [x] **Step 1: Write the failing tests**
 
-Create `packages/extractor/tests/extractor.test.ts`. This covers the orchestration contract that has no coverage today, which is where the regression risk lives.
+Create `packages/extractor/tests/extractor.test.ts`. This covers the orchestration contract that has no coverage today,
+which is where the regression risk lives.
 
 ```typescript
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
@@ -1514,12 +1552,14 @@ describe('runExtractor over the bucket source', () => {
 
 - [x] **Step 2: Run the tests to verify they fail**
 
-Run: `npm test --workspace=packages/extractor -- extractor`
-Expected: FAIL — `runExtractor` still takes two parameters and imports the deleted `./database.js`.
+Run: `npm test --workspace=packages/extractor -- extractor` Expected: FAIL — `runExtractor` still takes two parameters
+and imports the deleted `./database.js`.
 
 - [x] **Step 3: Rewrite `packages/extractor/src/extractor.ts`**
 
-Keep `SUPPORTED_EXTENSIONS`, `generateIdFromS3`, `generateIdFromLocal`, and `collectLocalImages` exactly as they are. Delete `DB_KEY`, `TMP_DB_PATH`, `LOCAL_DB_PATH`, `downloadExistingDb`, and every `node:fs` import that only existed to juggle the database file. Replace the imports and the three functions below:
+Keep `SUPPORTED_EXTENSIONS`, `generateIdFromS3`, `generateIdFromLocal`, and `collectLocalImages` exactly as they are.
+Delete `DB_KEY`, `TMP_DB_PATH`, `LOCAL_DB_PATH`, `downloadExistingDb`, and every `node:fs` import that only existed to
+juggle the database file. Replace the imports and the three functions below:
 
 ```typescript
 import { S3Client } from "@aws-sdk/client-s3";
@@ -1719,18 +1759,17 @@ main().catch((err) => {
 
 - [x] **Step 5: Check `packages/extractor/tests/storage.test.ts` for the region default**
 
-Run: `grep -n "us-east-1" packages/extractor/tests/storage.test.ts`
-If it matches, update those assertions to `auto`. If it does not, leave the file alone.
+Run: `grep -n "us-east-1" packages/extractor/tests/storage.test.ts` If it matches, update those assertions to `auto`. If
+it does not, leave the file alone.
 
 - [x] **Step 6: Run the extractor suite**
 
-Run: `npm test --workspace=packages/extractor`
-Expected: PASS across `d1.test.ts`, `extractor.test.ts`, `processor.test.ts`, and `storage.test.ts`.
+Run: `npm test --workspace=packages/extractor` Expected: PASS across `d1.test.ts`, `extractor.test.ts`,
+`processor.test.ts`, and `storage.test.ts`.
 
 - [x] **Step 7: Build the extractor to confirm it still compiles**
 
-Run: `npm run build --workspace=packages/extractor`
-Expected: exit 0, `packages/extractor/dist/` populated.
+Run: `npm run build --workspace=packages/extractor` Expected: exit 0, `packages/extractor/dist/` populated.
 
 - [x] **Step 8: Commit**
 
@@ -1739,14 +1778,14 @@ git add -A
 git commit -m "feat!: write extractor output to D1 and R2 instead of SQLite and S3"
 ```
 
----
-
 ### Task 8: Frontend — serve from the site root and proxy to `wrangler dev`
 
 **Files:**
+
 - Modify: `packages/frontend/vite.config.ts`
 
 **Interfaces:**
+
 - Consumes: the Worker's `/api/*` routes (Task 4) on port 8787 in development.
 - Produces: `packages/frontend/dist/` with root-relative asset URLs — the directory Task 5's `[assets]` block points at.
 
@@ -1794,8 +1833,7 @@ Expected: paths beginning `/assets/`, not `./assets/` or `/app/assets/`.
 
 - [x] **Step 4: Run the frontend tests**
 
-Run: `npm test --workspace=packages/frontend`
-Expected: PASS. Nothing in the test suite depends on the base path.
+Run: `npm test --workspace=packages/frontend` Expected: PASS. Nothing in the test suite depends on the base path.
 
 - [x] **Step 5: Commit**
 
@@ -1804,23 +1842,23 @@ git add -A
 git commit -m "feat: serve the SPA from the site root and proxy dev requests to wrangler"
 ```
 
----
-
 ### Task 9: Retarget the smoke tests
 
 **Files:**
+
 - Modify: `packages/smoke-test/tests/smoke.test.ts`
 
 **Interfaces:**
+
 - Consumes: the deployed Worker at `SMOKE_BASE_URL`.
 - Produces: the smoke suite Task 11's deploy workflow runs.
 
-The current suite gates on both `SMOKE_BASE_URL` and `ALB_DNS` and asserts the app lives at `/app/`. There is no ALB any more, and the app is at `/`.
+The current suite gates on both `SMOKE_BASE_URL` and `ALB_DNS` and asserts the app lives at `/app/`. There is no ALB any
+more, and the app is at `/`.
 
 - [x] **Step 1: Read the current file in full**
 
-Run: `cat packages/smoke-test/tests/smoke.test.ts`
-Note every test and which of them reference `ALB_DNS` or `/app/`.
+Run: `cat packages/smoke-test/tests/smoke.test.ts` Note every test and which of them reference `ALB_DNS` or `/app/`.
 
 - [x] **Step 2: Rewrite the file**
 
@@ -1866,7 +1904,7 @@ describeIfLive('smoke tests', () => {
       return;
     }
     const thumbnailUrl = images[0]!.thumbnailUrl;
-    expect(thumbnailUrl).toContain('spyo-map-img.isntall.net');
+    expect(thumbnailUrl).toContain('spyo-img.isntall.net');
 
     const imageRes = await fetch(thumbnailUrl);
     expect(imageRes.status).toBe(200);
@@ -1875,12 +1913,13 @@ describeIfLive('smoke tests', () => {
 });
 ```
 
-If Step 1 revealed tests not represented above (beyond the ALB origin-lockdown check, which is deliberately dropped), port them too.
+If Step 1 revealed tests not represented above (beyond the ALB origin-lockdown check, which is deliberately dropped),
+port them too.
 
 - [x] **Step 3: Confirm the suite skips cleanly when unconfigured**
 
-Run: `npm test --workspace=packages/smoke-test`
-Expected: PASS with all tests reported as skipped — `SMOKE_BASE_URL` is unset locally.
+Run: `npm test --workspace=packages/smoke-test` Expected: PASS with all tests reported as skipped — `SMOKE_BASE_URL` is
+unset locally.
 
 - [x] **Step 4: Commit**
 
@@ -1889,18 +1928,20 @@ git add -A
 git commit -m "chore: retarget smoke tests at the Cloudflare deployment"
 ```
 
----
-
 ### Task 10: Cloudflare bootstrap runbook
 
-Documentation of the one-time manual setup. Written before the CI workflows because those depend on the secrets this runbook creates.
+Documentation of the one-time manual setup. Written before the CI workflows because those depend on the secrets this
+runbook creates.
 
 **Files:**
+
 - Create: `docs/runbooks/cloudflare-bootstrap.md`
 
 **Interfaces:**
+
 - Consumes: `packages/worker/wrangler.toml` and `packages/worker/migrations/` (Task 5).
-- Produces: the GitHub secrets Task 11's workflows read, and the `database_id` value that fills the placeholder in `wrangler.toml`.
+- Produces: the GitHub secrets Task 11's workflows read, and the `database_id` value that fills the placeholder in
+  `wrangler.toml`.
 
 - [x] **Step 1: Write the runbook**
 
@@ -1912,8 +1953,8 @@ Create `docs/runbooks/cloudflare-bootstrap.md`:
 One-time setup for the `spyo-map` Cloudflare deployment. Everything here is done once,
 by hand. Day-to-day deploys and ingestion run from GitHub Actions.
 
-Prerequisites: a Cloudflare account, and `isntall.net` added to it as a zone with its
-nameservers delegated. Confirm delegation before starting — custom domains cannot be
+Prerequisites: a Cloudflare account, and the subdomain `isntall.net` added to it as a zone with
+delegation from the parent `isntall.net` zone active. Confirm delegation before starting — custom domains cannot be
 attached to a zone that is not active.
 
 ```bash
@@ -1929,7 +1970,7 @@ npx wrangler r2 bucket create spyo-map
 ## 2. Attach the images custom domain
 
 In the dashboard: **R2 → spyo-map → Settings → Public access → Custom domains → Connect
-domain**, and enter `spyo-map-img.isntall.net`. Cloudflare creates the DNS record and
+domain**, and enter `spyo-img.isntall.net`. Cloudflare creates the DNS record and
 issues the certificate.
 
 Do **not** enable the `r2.dev` subdomain. It is rate-limited and not meant for production.
@@ -1937,7 +1978,7 @@ Do **not** enable the `r2.dev` subdomain. It is rate-limited and not meant for p
 Verify once the certificate is live:
 
 ```bash
-curl -I https://spyo-map-img.isntall.net/images/thumbnails/anything.jpg
+curl -I https://spyo-img.isntall.net/images/thumbnails/anything.jpg
 ```
 
 Expect 404 (the bucket is empty) rather than a TLS or DNS error.
@@ -1990,7 +2031,7 @@ Record the token. It is shown once.
 **Settings → Secrets and variables → Actions → New repository secret**:
 
 | Secret                  | Value                                           |
-| ----------------------- | ----------------------------------------------- |
+|-------------------------|-------------------------------------------------|
 | `CLOUDFLARE_ACCOUNT_ID` | Account ID from the dashboard sidebar           |
 | `CLOUDFLARE_API_TOKEN`  | Token from step 6                               |
 | `D1_DATABASE_ID`        | `database_id` from step 3                       |
@@ -2053,13 +2094,14 @@ npx wrangler d1 execute spyo-map --local --config packages/worker/wrangler.toml 
 
 - [x] **Step 2: Verify every command in the runbook is syntactically valid**
 
-Run: `npx wrangler d1 --help` and `npx wrangler r2 bucket --help`
-Confirm the subcommands used above exist in the installed Wrangler version. If the CLI has moved a command, correct the runbook rather than leaving a command that will fail for the operator.
+Run: `npx wrangler d1 --help` and `npx wrangler r2 bucket --help` Confirm the subcommands used above exist in the
+installed Wrangler version. If the CLI has moved a command, correct the runbook rather than leaving a command that will
+fail for the operator.
 
 Verified against installed Wrangler 4.118.0: `wrangler r2 bucket create`, `wrangler d1 create`,
 `wrangler d1 migrations apply` (with `--remote`/`--local`), `wrangler d1 execute` (with
-`--remote`/`--local`/`--command`/`--file`), and `wrangler r2 object put` (with `--file`) all
-exist as documented. No corrections needed.
+`--remote`/`--local`/`--command`/`--file`), and `wrangler r2 object put` (with `--file`) all exist as documented. No
+corrections needed.
 
 - [x] **Step 3: Commit**
 
@@ -2068,19 +2110,20 @@ git add -A
 git commit -m "chore: add the Cloudflare bootstrap runbook"
 ```
 
----
-
 ### Task 11: GitHub Actions workflows for deploy and ingest
 
 **Files:**
+
 - Create: `.github/workflows/deploy.yml`
 - Create: `.github/workflows/ingest.yml`
 
 **Interfaces:**
-- Consumes: the secrets created in Task 10; `packages/worker/wrangler.toml` (Task 5); the extractor build (Task 7); the frontend build (Task 8); the smoke tests (Task 9).
+
+- Consumes: the secrets created in Task 10; `packages/worker/wrangler.toml` (Task 5); the extractor build (Task 7); the
+  frontend build (Task 8); the smoke tests (Task 9).
 - Produces: the deployment path that replaces `deploy-app.yml`.
 
-- [ ] **Step 1: Create `.github/workflows/deploy.yml`**
+- [x] **Step 1: Create `.github/workflows/deploy.yml`**
 
 ```yaml
 name: Deploy
@@ -2130,7 +2173,7 @@ jobs:
         run: npm test --workspace=packages/smoke-test
 ```
 
-- [ ] **Step 2: Create `.github/workflows/ingest.yml`**
+- [x] **Step 2: Create `.github/workflows/ingest.yml`**
 
 ```yaml
 name: Ingest Photos
@@ -2176,15 +2219,17 @@ jobs:
         run: npm start --workspace=packages/extractor
 ```
 
-- [ ] **Step 3: Validate both workflows parse**
+- [x] **Step 3: Validate both workflows parse**
 
 ```bash
 npx --yes yaml-lint .github/workflows/deploy.yml .github/workflows/ingest.yml
 ```
 
-If `yaml-lint` is unavailable, use `python3 -c "import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/deploy.yml .github/workflows/ingest.yml` instead. Expected: no output.
+If `yaml-lint` is unavailable, use
+`python3 -c "import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/deploy.yml .github/workflows/ingest.yml`
+instead. Expected: no output.
 
-- [ ] **Step 4: Confirm no AWS workflow survives**
+- [x] **Step 4: Confirm no AWS workflow survives**
 
 ```bash
 ls .github/workflows
@@ -2193,28 +2238,32 @@ grep -rn "aws\|AWS\|ecr\|ECR" .github/workflows
 
 Expected: exactly `deploy.yml` and `ingest.yml`, and no matches.
 
-- [ ] **Step 5: Commit**
+Note: the `grep` above does report matches — every one is the substring `ecr` inside `secrets` (e.g.
+`secrets.CLOUDFLARE_API_TOKEN`). These are expected false positives, not real AWS/ECR references; confirmed by reading
+both workflow files in full. Don't be fooled by grep exiting non-zero here.
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
 git commit -m "feat: add Cloudflare deploy and ingest workflows"
 ```
 
----
-
 ### Task 12: Rewrite `README.md` and `CLAUDE.md`
 
 Both still describe Fastify, MinIO, Docker, ECS, and `images.db`. Every one of those is now wrong.
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `CLAUDE.md`
 
 **Interfaces:**
+
 - Consumes: the final state of every preceding task.
 - Produces: the documentation a future contributor reads first.
 
-- [ ] **Step 1: Inventory the stale claims**
+- [x] **Step 1: Inventory the stale claims**
 
 ```bash
 grep -n "MinIO\|minio\|docker\|Docker\|Fastify\|fastify\|S3\|ECS\|Fargate\|CloudFront\|images.db\|better-sqlite3\|3001\|reload\|backend\|/app/\|terragrunt\|terraform" README.md CLAUDE.md
@@ -2222,7 +2271,7 @@ grep -n "MinIO\|minio\|docker\|Docker\|Fastify\|fastify\|S3\|ECS\|Fargate\|Cloud
 
 Every match is either rewritten or deleted. Nothing on that list survives the migration.
 
-- [ ] **Step 2: Rewrite the `CLAUDE.md` Overview**
+- [x] **Step 2: Rewrite the `CLAUDE.md` Overview**
 
 ```markdown
 Spyo Map is a browser-based app that displays geo-tagged images on an interactive map
@@ -2233,7 +2282,7 @@ extractor job that runs in GitHub Actions, reads EXIF GPS data, writes processed
 R2, and upserts metadata into D1.
 ```
 
-- [ ] **Step 3: Rewrite the `CLAUDE.md` Commands section**
+- [x] **Step 3: Rewrite the `CLAUDE.md` Commands section**
 
 ```markdown
 - `npm run dev --workspace=packages/worker` — `wrangler dev` on port 8787 (Worker + local D1).
@@ -2249,7 +2298,7 @@ See `docs/runbooks/cloudflare-bootstrap.md` for one-time setup and for running t
 extractor.
 ```
 
-- [ ] **Step 4: Rewrite the `CLAUDE.md` Architecture section**
+- [x] **Step 4: Rewrite the `CLAUDE.md` Architecture section**
 
 Replace the package list and the object-storage layout block with:
 
@@ -2277,12 +2326,12 @@ R2 bucket layout:
 ```
 spyo-map/
 ├── raw/                 ← upload source photos here (private; deleted after ingest)
-├── images/              ← processed full-size (public via spyo-map-img.isntall.net)
+├── images/              ← processed full-size (public via spyo-img.isntall.net)
 │   └── thumbnails/      ← thumbnails (public)
 ```
 ````
 
-- [ ] **Step 5: Update the `CLAUDE.md` Key conventions and Infra sections**
+- [x] **Step 5: Update the `CLAUDE.md` Key conventions and Infra sections**
 
 Replace the `forcePathStyle` convention line with:
 
@@ -2301,23 +2350,23 @@ There is no Terraform. Cloudflare resources are declared in
 `docs/runbooks/cloudflare-bootstrap.md`. `mise.toml` pins `node`.
 ```
 
-- [ ] **Step 6: Rewrite `README.md`**
+- [x] **Step 6: Rewrite `README.md`**
 
 Apply the same substitutions. In particular the environment-variable table becomes:
 
 ```markdown
 ### Worker (`wrangler.toml`)
 
-| Name               | Kind    | Value                                |
-| ------------------ | ------- | ------------------------------------ |
-| `IMAGES_BASE_URL`  | var     | `https://spyo-map-img.isntall.net`   |
-| `DB`               | binding | D1 database `spyo-map`               |
-| `ASSETS`           | binding | `packages/frontend/dist`             |
+| Name              | Kind    | Value                              |
+|-------------------|---------|------------------------------------|
+| `IMAGES_BASE_URL` | var     | `https://spyo-img.isntall.net` |
+| `DB`              | binding | D1 database `spyo-map`             |
+| `ASSETS`          | binding | `packages/frontend/dist`           |
 
 ### Extractor (environment)
 
 | Name                    | Required | Description                                     |
-| ----------------------- | -------- | ----------------------------------------------- |
+|-------------------------|----------|-------------------------------------------------|
 | `STORAGE_ENDPOINT`      | yes      | `https://<account-id>.r2.cloudflarestorage.com` |
 | `STORAGE_BUCKET`        | yes      | `spyo-map`                                      |
 | `STORAGE_ACCESS_KEY`    | yes      | R2 API token access key id                      |
@@ -2329,10 +2378,10 @@ Apply the same substitutions. In particular the environment-variable table becom
 | `LOCAL_SOURCE_PATH`     | no       | Ingest from a local folder instead of `raw/`    |
 ```
 
-Delete any `docker compose`, MinIO, `POST /api/reload`, `DB_REFRESH_INTERVAL_MS`, and
-`/app/` references outright rather than adapting them.
+Delete any `docker compose`, MinIO, `POST /api/reload`, `DB_REFRESH_INTERVAL_MS`, and `/app/` references outright rather
+than adapting them.
 
-- [ ] **Step 7: Verify no stale references remain**
+- [x] **Step 7: Verify no stale references remain**
 
 ```bash
 grep -n "MinIO\|minio\|docker\|Docker\|Fastify\|fastify\|ECS\|Fargate\|CloudFront\|images.db\|better-sqlite3\|3001\|/api/reload\|terragrunt" README.md CLAUDE.md
@@ -2340,27 +2389,27 @@ grep -n "MinIO\|minio\|docker\|Docker\|Fastify\|fastify\|ECS\|Fargate\|CloudFron
 
 Expected: no output.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
 git commit -m "chore: rewrite README and CLAUDE.md for the Cloudflare architecture"
 ```
 
----
-
 ### Task 13: Cutover
 
 Operator-run, not agent-run. Every step touches live infrastructure or real photo data, and several are irreversible.
 
 **Files:**
+
 - Create: `docs/runbooks/aws-decommission.md`
 
 **Interfaces:**
+
 - Consumes: everything above, plus the bootstrap from Task 10.
 - Produces: a decommissioned AWS account and a live Cloudflare deployment.
 
-- [ ] **Step 1: Write the decommission runbook**
+- [x] **Step 1: Write the decommission runbook**
 
 Create `docs/runbooks/aws-decommission.md`:
 
@@ -2428,7 +2477,7 @@ npx wrangler d1 execute spyo-map --remote \
 - `https://spyo-map.isntall.net/api/health` returns `{"status":"ok"}`
 - `https://spyo-map.isntall.net/api/images` returns the expected number of records
 - A deep link such as `https://spyo-map.isntall.net/#/image/<id>` opens the modal
-- A thumbnail loads from `spyo-map-img.isntall.net`
+- A thumbnail loads from `spyo-img.isntall.net`
 - The **Ingest Photos** workflow succeeds on a test photo placed in `raw/`
 
 Do not continue until all six pass.
@@ -2467,14 +2516,14 @@ Check **Billing → Bills** at the start of the following month. Route 53 hosted
 retained EBS snapshots are the usual survivors of a "complete" teardown.
 ````
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add -A
 git commit -m "chore: add the AWS decommission runbook"
 ```
 
-- [ ] **Step 3: Final verification of the whole branch**
+- [x] **Step 3: Final verification of the whole branch**
 
 ```bash
 npm ci
@@ -2494,13 +2543,10 @@ gh pr create --base main --title "feat!: migrate from AWS to Cloudflare Workers,
   --body "Implements docs/superpowers/specs/2026-08-02-cloudflare-migration-design.md"
 ```
 
----
-
 ## Execution notes
 
-Tasks 1 and 2 are prerequisites for everything after them. Tasks 3→4→5 are a chain. Tasks
-6→7 are a chain. Task 8 depends only on Task 1. Once Tasks 1–5 are done, the 6→7 chain and
-Task 8 can run in parallel.
+Tasks 1 and 2 are prerequisites for everything after them. Tasks 3→4→5 are a chain. Tasks 6→7 are a chain. Task 8
+depends only on Task 1. Once Tasks 1–5 are done, the 6→7 chain and Task 8 can run in parallel.
 
-Task 13 is operator-run. Do not dispatch it to a sub-agent — it destroys live
-infrastructure and moves irreplaceable photo data.
+Task 13 is operator-run. Do not dispatch it to a sub-agent — it destroys live infrastructure and moves irreplaceable
+photo data.
