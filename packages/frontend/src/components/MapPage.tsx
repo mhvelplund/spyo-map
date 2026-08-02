@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { apiClient } from '../services';
 import type { ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';

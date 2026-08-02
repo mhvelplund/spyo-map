@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router';
 import LandingPage from '../components/LandingPage';
 import MapPage from '../components/MapPage';
 

@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-const mockSend = jest.fn() as jest.Mock<() => Promise<void>>;
+const mockSend = jest.fn() as jest.Mock<() => Promise<{ $metadata: { httpStatusCode: number } }>>;
 
 jest.unstable_mockModule('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send: mockSend })),
@@ -19,7 +19,7 @@ describe('deleteObject', () => {
 
   beforeEach(() => {
     mockSend.mockReset();
-    mockSend.mockResolvedValue(undefined);
+    mockSend.mockResolvedValue({ $metadata: { httpStatusCode: 204 } });
   });
 
   it('sends a DeleteObjectCommand with the correct bucket and key', async () => {

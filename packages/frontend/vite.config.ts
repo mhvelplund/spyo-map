@@ -23,7 +23,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           leaflet: ['leaflet', 'react-leaflet'],
-          router: ['react-router-dom'],
+          router: ['react-router'],
         },
 
         // Asset file naming for better caching
