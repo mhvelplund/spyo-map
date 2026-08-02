@@ -5,6 +5,7 @@ const config = {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^@spyo-map/shared$': '<rootDir>/../shared/src/types.ts',
+    '^@cloudflare/workers-types$': '<rootDir>/../../node_modules/@cloudflare/workers-types/index.d.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testMatch: ['<rootDir>/tests/**/*.test.ts'],

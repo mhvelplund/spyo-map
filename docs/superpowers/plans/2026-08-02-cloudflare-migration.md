@@ -214,7 +214,7 @@ The three query helpers already take their database as a parameter and are pure 
 
   Task 4 calls all four.
 
-- [ ] **Step 1: Move the package and drop the dead files**
+- [x] **Step 1: Move the package and drop the dead files**
 
 ```bash
 git mv packages/backend packages/worker
@@ -223,7 +223,7 @@ git rm --quiet packages/worker/src/server.ts packages/worker/src/config.ts \
 rmdir packages/worker/src/routes
 ```
 
-- [ ] **Step 2: Rewrite `packages/worker/package.json`**
+- [x] **Step 2: Rewrite `packages/worker/package.json`**
 
 ```json
 {
@@ -253,12 +253,13 @@ rmdir packages/worker/src/routes
 
 `fastify`, `@fastify/cors`, `better-sqlite3`, `@types/better-sqlite3`, `@aws-sdk/client-s3`, `@types/node`, and `tsx` are all gone. There is no `build` script — `wrangler deploy` bundles the Worker itself.
 
-- [ ] **Step 3: Rewrite `packages/worker/tsconfig.json`**
+- [x] **Step 3: Rewrite `packages/worker/tsconfig.json`**
 
 ```json
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2022"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "rootDir": "src",
@@ -277,7 +278,7 @@ rmdir packages/worker/src/routes
 
 `outDir` is gone because the Worker is bundled by Wrangler, not `tsc`. `types` replaces `@types/node` — the Workers runtime is not Node.
 
-- [ ] **Step 4: Create `packages/worker/src/env.ts`**
+- [x] **Step 4: Create `packages/worker/src/env.ts`**
 
 ```typescript
 import type { D1Database, Fetcher } from "@cloudflare/workers-types";
@@ -292,7 +293,7 @@ export interface Env {
 }
 ```
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 Create `packages/worker/tests/database.test.ts`. The fake mimics D1's real shape: `prepare(sql)` returns a statement, `bind(...params)` returns the same statement, and `all()` resolves to `{ results }`.
 
@@ -435,12 +436,12 @@ describe('queryNearbyImages', () => {
 });
 ```
 
-- [ ] **Step 6: Run the tests to verify they fail**
+- [x] **Step 6: Run the tests to verify they fail**
 
 Run: `npm test --workspace=packages/worker`
 Expected: FAIL — `packages/worker/src/services/database.ts` still imports `better-sqlite3` and `@aws-sdk/client-s3`, which are no longer installed.
 
-- [ ] **Step 7: Rewrite `packages/worker/src/services/database.ts`**
+- [x] **Step 7: Rewrite `packages/worker/src/services/database.ts`**
 
 Replace the file entirely. Everything above the `// --- Exported testable helpers` marker in the old file (the S3 client, `downloadDb`, `openDb`, `initDatabase`, `reloadDatabase`, `getDb`, the module-level `db` singleton) is deleted, as are the three no-argument public wrappers at the bottom.
 
@@ -516,7 +517,7 @@ export async function queryNearbyImages(
 }
 ```
 
-- [ ] **Step 8: Update `packages/worker/jest.config.mjs`**
+- [x] **Step 8: Update `packages/worker/jest.config.mjs`**
 
 Only the `moduleNameMapper` needs a new entry so the fake's type import resolves at transform time. Add to the existing map:
 
@@ -526,17 +527,17 @@ Only the `moduleNameMapper` needs a new entry so the fake's type import resolves
 
 If Jest still errors on that import, delete the mapping instead and change the test file's import to a local type alias — `isolatedModules: true` erases types, so the import exists only to satisfy the editor.
 
-- [ ] **Step 9: Install the new dependency set**
+- [x] **Step 9: Install the new dependency set**
 
 Run: `npm install`
 Expected: `fastify`, `better-sqlite3`, and `@aws-sdk/client-s3` disappear from `packages/worker`; `wrangler` and `@cloudflare/workers-types` appear.
 
-- [ ] **Step 10: Run the tests to verify they pass**
+- [x] **Step 10: Run the tests to verify they pass**
 
 Run: `npm test --workspace=packages/worker`
 Expected: PASS, 11 tests.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add -A
