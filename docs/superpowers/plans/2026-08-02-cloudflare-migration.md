@@ -954,7 +954,7 @@ The extractor runs in Node (GitHub Actions), not in a Worker, so it has no D1 bi
 
 **API shape.** `POST https://api.cloudflare.com/client/v4/accounts/{accountId}/d1/database/{databaseId}/query` with header `Authorization: Bearer {token}` and body `{ "sql": "...", "params": [...] }`. A success response is `{ "success": true, "result": [ { "results": [...], "success": true } ] }`; a failure is `{ "success": false, "errors": [ { "code": n, "message": "..." } ] }`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `packages/extractor/tests/d1.test.ts`:
 
@@ -982,7 +982,27 @@ const CONFIG: Config = {
   d1DatabaseId: 'db123',
 };
 
-const EXIF: ExifData = { latitude: 51.5, longitude: -0.12 };
+function makeExif(overrides: Partial<ExifData> = {}): ExifData {
+  return {
+    latitude: 51.5,
+    longitude: -0.12,
+    timestamp: undefined,
+    latitudeRef: undefined,
+    longitudeRef: undefined,
+    altitudeRef: undefined,
+    altitude: undefined,
+    speedRef: undefined,
+    speed: undefined,
+    imgDirectionRef: undefined,
+    imgDirection: undefined,
+    destBearingRef: undefined,
+    destBearing: undefined,
+    hPositioningError: undefined,
+    ...overrides,
+  };
+}
+
+const EXIF: ExifData = makeExif();
 
 function okResponse(results: unknown[]): Response {
   return new Response(
@@ -1007,7 +1027,7 @@ function fakeClient(rows: Array<Record<string, unknown>> = []): {
 }
 
 describe('createD1Client', () => {
-  let mockFetch: jest.Mock;
+  let mockFetch: jest.Mock<any>;
 
   beforeEach(() => {
     mockFetch = jest.fn();
@@ -1126,12 +1146,12 @@ describe('upsertImages', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npm test --workspace=packages/extractor -- d1`
 Expected: FAIL — `Cannot find module '../src/d1.js'`.
 
-- [ ] **Step 3: Add the Cloudflare fields to `packages/extractor/src/config.ts`**
+- [x] **Step 3: Add the Cloudflare fields to `packages/extractor/src/config.ts`**
 
 Extend the interface and `loadConfig`. `requireEnv` already exists in the file; reuse it. Change the `storageRegion` default from `'us-east-1'` to `'auto'` — R2's region is always `auto`.
 
@@ -1163,7 +1183,7 @@ export function loadConfig(): Config {
 }
 ```
 
-- [ ] **Step 4: Write `packages/extractor/src/d1.ts`**
+- [x] **Step 4: Write `packages/extractor/src/d1.ts`**
 
 ```typescript
 import type { Config } from './config.js';
@@ -1284,7 +1304,7 @@ export async function upsertImages(client: D1Client, rows: ImageInsert[]): Promi
 }
 ```
 
-- [ ] **Step 5: Remove the SQLite database module and its tests**
+- [x] **Step 5: Remove the SQLite database module and its tests**
 
 ```bash
 git rm --quiet packages/extractor/src/database.ts packages/extractor/tests/database.test.ts
@@ -1292,18 +1312,18 @@ git rm --quiet packages/extractor/src/database.ts packages/extractor/tests/datab
 
 They are replaced by `d1.ts` and `d1.test.ts`. Task 7 removes the last imports of `database.js`.
 
-- [ ] **Step 6: Drop `better-sqlite3` from the extractor**
+- [x] **Step 6: Drop `better-sqlite3` from the extractor**
 
 In `packages/extractor/package.json`, remove `better-sqlite3` from `dependencies` and `@types/better-sqlite3` from `devDependencies`. Keep `sharp`, `exifr`, and `@aws-sdk/client-s3`.
 
 Run: `npm install`
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `npm test --workspace=packages/extractor -- d1`
 Expected: PASS, 14 tests. The extractor's other suites will fail to compile until Task 7 — that is expected and why this step scopes to `d1`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A

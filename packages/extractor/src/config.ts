@@ -5,6 +5,9 @@ export interface Config {
   storageSecretKey: string | undefined;
   storageRegion: string;
   localSourcePath: string | undefined;
+  cloudflareAccountId: string;
+  cloudflareApiToken: string;
+  d1DatabaseId: string;
 }
 
 function requireEnv(name: string): string {
@@ -21,7 +24,10 @@ export function loadConfig(): Config {
     storageBucket: requireEnv('STORAGE_BUCKET'),
     storageAccessKey: process.env['STORAGE_ACCESS_KEY'] || undefined,
     storageSecretKey: process.env['STORAGE_SECRET_KEY'] || undefined,
-    storageRegion: process.env['STORAGE_REGION'] ?? 'us-east-1',
+    storageRegion: process.env['STORAGE_REGION'] ?? 'auto',
     localSourcePath: process.env['LOCAL_SOURCE_PATH'] || undefined,
+    cloudflareAccountId: requireEnv('CLOUDFLARE_ACCOUNT_ID'),
+    cloudflareApiToken: requireEnv('CLOUDFLARE_API_TOKEN'),
+    d1DatabaseId: requireEnv('D1_DATABASE_ID'),
   };
 }
