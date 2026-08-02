@@ -2,13 +2,21 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import type { Config } from '../src/config.js';
 import type { D1Client, ImageInsert } from '../src/d1.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockListObjects = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGetObject = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockPutObject = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockDeleteObject = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockExtractExif = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockProcessImage = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockFetchExistingIds = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockUpsertImages = jest.fn() as jest.Mock<any>;
 
 jest.unstable_mockModule('../src/storage.js', () => ({

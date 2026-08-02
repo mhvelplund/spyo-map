@@ -1,18 +1,29 @@
 const BASE_URL = process.env['SMOKE_BASE_URL'];
-const ALB_DNS = process.env['ALB_DNS'];
 
-const describeIfLive = BASE_URL && ALB_DNS ? describe : describe.skip;
+const describeIfLive = BASE_URL ? describe : describe.skip;
 
 describeIfLive('smoke tests', () => {
-  test('frontend is reachable at /app/', async () => {
-    const res = await fetch(`${BASE_URL}/app/`);
+  test('the SPA is reachable at the site root', async () => {
+    const res = await fetch(`${BASE_URL}/`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/html/);
     const body = await res.text();
     expect(body).toContain('<div id="root">');
   });
 
-  test('backend API returns image list at /api/images', async () => {
+  test('an unknown path falls back to the SPA shell', async () => {
+    const res = await fetch(`${BASE_URL}/not-a-real-path`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<div id="root">');
+  });
+
+  test('the health endpoint responds', async () => {
+    const res = await fetch(`${BASE_URL}/api/health`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'ok' });
+  });
+
+  test('the API returns an image list', async () => {
     const res = await fetch(`${BASE_URL}/api/images`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
@@ -20,40 +31,20 @@ describeIfLive('smoke tests', () => {
     expect(Array.isArray(data)).toBe(true);
   });
 
-  test('images are accessible via CloudFront', async () => {
+  test('thumbnails are served from the images domain', async () => {
     const apiRes = await fetch(`${BASE_URL}/api/images`);
     const images = (await apiRes.json()) as Array<{ thumbnailUrl: string }>;
     if (images.length === 0) {
-      console.log('No images in DB — skipping image reachability check');
+      console.log('No images in D1 — skipping image reachability check');
       return;
     }
-    const imageRes = await fetch(images[0].thumbnailUrl);
+    const thumbnailUrl = images[0]!.thumbnailUrl;
+    expect(thumbnailUrl).toContain('spyo-map-img.isntall.net');
+
+    const imageRes = await fetch(thumbnailUrl);
     expect(imageRes.status).toBe(200);
     expect(imageRes.headers.get('content-type')).toMatch(/image\//);
     const buf = await imageRes.arrayBuffer();
     expect(buf.byteLength).toBeGreaterThan(0);
-  });
-
-  test('ALB is not directly reachable (bypass protection works)', async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => { controller.abort(); }, 5000);
-    try {
-      const res = await fetch(`http://${ALB_DNS}/api/images`, {
-        signal: controller.signal,
-      });
-      // A 2xx means the SG is not blocking — this is the failure case
-      if (res.status >= 200 && res.status < 300) {
-        throw new Error(`ALB returned HTTP ${res.status} — direct access is not blocked`);
-      }
-      // Non-2xx means ALB is network-reachable but blocked at application layer
-      // (ideally the SG drops the connection before this point)
-      console.warn(`ALB bypass test: HTTP ${res.status} received — network reachable but blocked at application layer (verify SG restricts inbound to CloudFront prefix list only)`);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return; // timeout → pass
-      if (err instanceof TypeError) return; // network error (ECONNREFUSED, ECONNRESET) → pass
-      throw err;
-    } finally {
-      clearTimeout(timeout);
-    }
   });
 });

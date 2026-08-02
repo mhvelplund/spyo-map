@@ -1750,7 +1750,7 @@ git commit -m "feat!: write extractor output to D1 and R2 instead of SQLite and 
 - Consumes: the Worker's `/api/*` routes (Task 4) on port 8787 in development.
 - Produces: `packages/frontend/dist/` with root-relative asset URLs — the directory Task 5's `[assets]` block points at.
 
-- [ ] **Step 1: Change the base path**
+- [x] **Step 1: Change the base path**
 
 In `packages/frontend/vite.config.ts`, replace:
 
@@ -1765,7 +1765,7 @@ with:
   base: '/',
 ```
 
-- [ ] **Step 2: Repoint the dev proxy**
+- [x] **Step 2: Repoint the dev proxy**
 
 Replace:
 
@@ -1783,7 +1783,7 @@ with:
     }
 ```
 
-- [ ] **Step 3: Build and confirm the asset URLs are root-relative**
+- [x] **Step 3: Build and confirm the asset URLs are root-relative**
 
 ```bash
 npm run build --workspace=packages/frontend
@@ -1792,12 +1792,12 @@ grep -o 'src="[^"]*"' packages/frontend/dist/index.html
 
 Expected: paths beginning `/assets/`, not `./assets/` or `/app/assets/`.
 
-- [ ] **Step 4: Run the frontend tests**
+- [x] **Step 4: Run the frontend tests**
 
 Run: `npm test --workspace=packages/frontend`
 Expected: PASS. Nothing in the test suite depends on the base path.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -1817,12 +1817,12 @@ git commit -m "feat: serve the SPA from the site root and proxy dev requests to 
 
 The current suite gates on both `SMOKE_BASE_URL` and `ALB_DNS` and asserts the app lives at `/app/`. There is no ALB any more, and the app is at `/`.
 
-- [ ] **Step 1: Read the current file in full**
+- [x] **Step 1: Read the current file in full**
 
 Run: `cat packages/smoke-test/tests/smoke.test.ts`
 Note every test and which of them reference `ALB_DNS` or `/app/`.
 
-- [ ] **Step 2: Rewrite the file**
+- [x] **Step 2: Rewrite the file**
 
 ```typescript
 const BASE_URL = process.env['SMOKE_BASE_URL'];
@@ -1877,12 +1877,12 @@ describeIfLive('smoke tests', () => {
 
 If Step 1 revealed tests not represented above (beyond the ALB origin-lockdown check, which is deliberately dropped), port them too.
 
-- [ ] **Step 3: Confirm the suite skips cleanly when unconfigured**
+- [x] **Step 3: Confirm the suite skips cleanly when unconfigured**
 
 Run: `npm test --workspace=packages/smoke-test`
 Expected: PASS with all tests reported as skipped — `SMOKE_BASE_URL` is unset locally.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -1902,7 +1902,7 @@ Documentation of the one-time manual setup. Written before the CI workflows beca
 - Consumes: `packages/worker/wrangler.toml` and `packages/worker/migrations/` (Task 5).
 - Produces: the GitHub secrets Task 11's workflows read, and the `database_id` value that fills the placeholder in `wrangler.toml`.
 
-- [ ] **Step 1: Write the runbook**
+- [x] **Step 1: Write the runbook**
 
 Create `docs/runbooks/cloudflare-bootstrap.md`:
 
@@ -2051,12 +2051,17 @@ npx wrangler d1 execute spyo-map --local --config packages/worker/wrangler.toml 
 ```
 ````
 
-- [ ] **Step 2: Verify every command in the runbook is syntactically valid**
+- [x] **Step 2: Verify every command in the runbook is syntactically valid**
 
 Run: `npx wrangler d1 --help` and `npx wrangler r2 bucket --help`
 Confirm the subcommands used above exist in the installed Wrangler version. If the CLI has moved a command, correct the runbook rather than leaving a command that will fail for the operator.
 
-- [ ] **Step 3: Commit**
+Verified against installed Wrangler 4.118.0: `wrangler r2 bucket create`, `wrangler d1 create`,
+`wrangler d1 migrations apply` (with `--remote`/`--local`), `wrangler d1 execute` (with
+`--remote`/`--local`/`--command`/`--file`), and `wrangler r2 object put` (with `--file`) all
+exist as documented. No corrections needed.
+
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A
