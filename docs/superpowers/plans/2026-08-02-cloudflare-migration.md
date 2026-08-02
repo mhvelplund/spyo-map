@@ -568,7 +568,7 @@ git commit -m "feat!: replace the Fastify backend with a D1-backed worker query 
 | `GET /api/images/:id/nearby?radius=` | 200 `ImageRecord[]`; 404 if the id is unknown; 400 `{ "error": "Invalid radius" }` if `radius` is not a non-negative number. Default radius 1. |
 | anything else under `/api/`          | 404 `{ "error": "Not found" }`                  |
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `packages/worker/tests/router.test.ts`:
 
@@ -715,12 +715,12 @@ describe('unknown API routes', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npm test --workspace=packages/worker -- router`
 Expected: FAIL — `Cannot find module '../src/router.js'`.
 
-- [ ] **Step 3: Write `packages/worker/src/router.ts`**
+- [x] **Step 3: Write `packages/worker/src/router.ts`**
 
 ```typescript
 import type { Env } from "./env.js";
@@ -792,7 +792,7 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
 }
 ```
 
-- [ ] **Step 4: Write `packages/worker/src/index.ts`**
+- [x] **Step 4: Write `packages/worker/src/index.ts`**
 
 Assets are served through the `ASSETS` binding rather than by Wrangler's automatic asset routing, so `/api/*` is unambiguously the Worker's and SPA fallback is unambiguously the binding's.
 
@@ -815,17 +815,17 @@ export default {
 };
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npm test --workspace=packages/worker`
 Expected: PASS, 25 tests across both files (11 from `database.test.ts`, 14 from `router.test.ts`).
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 Run: `npm run typecheck --workspace=packages/worker`
 Expected: no output, exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
