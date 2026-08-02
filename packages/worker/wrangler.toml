@@ -1,0 +1,25 @@
+name = "spyo-map"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "spyo-map.isntall.net", custom_domain = true }
+]
+
+[vars]
+IMAGES_BASE_URL = "https://spyo-map-img.isntall.net"
+
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# Without this, the asset router answers /api/* with index.html (SPA fallback)
+# before the Worker ever runs.
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spyo-map"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"

@@ -846,7 +846,7 @@ git commit -m "feat: add the worker fetch handler and API router"
 - Consumes: `packages/worker/src/index.ts` (Task 4) as the Worker entrypoint.
 - Produces: the bindings `DB`, `ASSETS`, and the var `IMAGES_BASE_URL` that `Env` (Task 3) declares; the `images` table schema that Task 6's extractor writes to.
 
-- [ ] **Step 1: Create the schema migration**
+- [x] **Step 1: Create the schema migration**
 
 `packages/worker/migrations/0001_create_images.sql` — identical to the schema the old `packages/extractor/src/database.ts` created at runtime:
 
@@ -874,7 +874,7 @@ CREATE INDEX IF NOT EXISTS idx_location ON images(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_timestamp ON images(timestamp);
 ```
 
-- [ ] **Step 2: Create `packages/worker/wrangler.toml`**
+- [x] **Step 2: Create `packages/worker/wrangler.toml`**
 
 `database_id` is filled in during the bootstrap in Task 10; leave the placeholder string exactly as written so it is obvious when it has not been set.
 
@@ -906,7 +906,7 @@ database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 ```
 
-- [ ] **Step 3: Ignore Wrangler's local state**
+- [x] **Step 3: Ignore Wrangler's local state**
 
 Create `packages/worker/.gitignore`:
 
@@ -914,14 +914,14 @@ Create `packages/worker/.gitignore`:
 .wrangler/
 ```
 
-- [ ] **Step 4: Verify the config parses and the Worker bundles**
+- [x] **Step 4: Verify the config parses and the Worker bundles**
 
 Run: `npx wrangler deploy --dry-run --config packages/worker/wrangler.toml`
 Expected: reports the bundled Worker size and the `DB` / `ASSETS` bindings, then exits without uploading. It will warn that `../frontend/dist` does not exist unless the frontend has been built — build it first with `npm run build` if so.
 
 A `database_id` error at this stage is expected and fine; the dry run still validates the rest.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
