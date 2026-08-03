@@ -32,3 +32,4 @@ images.db
 .worktrees/
 *.ignore.superpowers/
 .superpowers/
+docs/superpowers/
