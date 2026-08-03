@@ -1,1 +1,1 @@
-export type { ImageRecord, GeoLocation, AppState, MapViewProps, ImageModalProps, SocialShareProps } from '@spyro-map/shared';
+export type { ImageRecord, GeoLocation, AppState, MapViewProps, ImageModalProps, SocialShareProps } from '@spyo-map/shared';

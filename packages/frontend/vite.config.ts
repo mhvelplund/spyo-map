@@ -57,7 +57,7 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      '/api': 'http://localhost:3001'
+      '/api': 'http://localhost:8787'
     }
   },
 
@@ -67,8 +67,8 @@ export default defineConfig({
     open: true
   },
 
-  // Base path for deployment (can be overridden with --base flag)
-  base: process.env.VITE_BASE_PATH ?? './',
+  // The Worker serves the SPA from the site root.
+  base: '/',
 
   // Ensure environment variables are properly handled
   envPrefix: 'VITE_'

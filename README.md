@@ -3,7 +3,8 @@
 A browser-based web application that displays geo-tagged images on an interactive map. Browse photos by location, view
 in a modal lightbox, navigate between nearby images, and share on social media.
 
-Built with React + Leaflet (OpenStreetMap) frontend, a Fastify API backend, and MinIO/S3 object storage for images.
+Built with a React + Leaflet (OpenStreetMap) frontend, running entirely on Cloudflare: a Worker serves the SPA and a
+JSON API backed by D1, and images are served directly from an R2 bucket.
 
 ## Development story
 
@@ -15,75 +16,53 @@ attempt at creating a full app with Kiro, but it was the first _partially_ succe
 
 ## Architecture
 
-```
+```text
 Browser (React + Leaflet)
   │
-  ├─ GET /api/images  ──▶  Fastify backend  ──▶  downloads images.db from S3/MinIO
+  ├─ GET /api/images  ──▶  Cloudflare Worker  ──▶  D1 (spyo-map)
   │
-  └─ <img src="...">  ──▶  S3/MinIO (direct, no proxy)
+  └─ <img src="...">  ──▶  R2 (spyo-img.isntall.net, direct, no proxy)
                               ├── raw/          ← drop photos here
                               ├── images/       ← processed full-size
-                              │   └── thumbnails/
-                              └── images.db     ← written by extractor job
+                              └── thumbnails/
 ```
 
-The frontend never touches the object store directly except for loading images via `<img>` tags. Image metadata
-(coordinates, URLs) comes from the backend REST API. The backend downloads `images.db` from object storage at startup
-and refreshes it periodically.
+The frontend never touches R2 directly except for loading images via `<img>` tags. Image metadata (coordinates, URLs)
+comes from the Worker's REST API, which reads D1 directly on every request.
 
 ## Local development
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [Node.js 22+](https://nodejs.org/) (for `npm run dev` hot-reload workflow)
+- [Node.js 22+](https://nodejs.org/)
 - [mise](https://mise.jdx.dev/) (optional, for tool version management)
+- A Cloudflare account is only needed for deploying; local dev uses `wrangler`'s local D1 emulation.
 
-### Start all services
+See `docs/runbooks/cloudflare-bootstrap.md` for one-time Cloudflare setup (R2 bucket, D1 database, API tokens) and for
+running the extractor against a live bucket.
 
-```shell
-docker compose up
-```
-
-This starts:
-- **MinIO** at `http://localhost:9000` (API) and `http://localhost:9001` (web console)
-- **Backend** at `http://localhost:3001`
-- **Frontend** (nginx) at `http://localhost:80`
-
-MinIO credentials: `minioadmin` / `minioadmin`
-
-### Ingest photos
-
-Drop photos into the MinIO `raw/` folder via the web console (`http://localhost:9001`), then run the extractor:
-
-```shell
-docker compose run --rm extractor
-```
-
-To ingest from a local folder (e.g. an SD card):
-
-```shell
-docker compose run --rm -e LOCAL_SOURCE_PATH=/photos -v /path/to/photos:/photos extractor
-```
-
-After the extractor finishes, the backend picks up the new `images.db` automatically within 30 seconds (or call
-`POST http://localhost:3001/api/reload` to reload immediately).
-
-### Hot-reload frontend development
+### Start the Worker and frontend
 
 ```shell
 npm install
-npm run dev   # starts Vite dev server at http://localhost:3000, proxies /api to localhost:3001
+npx wrangler d1 migrations apply spyo-map --local --config packages/worker/wrangler.toml
+npm run dev --workspace=packages/worker    # wrangler dev at http://localhost:8787
+npm run dev --workspace=packages/frontend  # Vite dev server at http://localhost:3000, proxies /api to 8787
 ```
+
+### Ingest photos
+
+Photos are ingested from the `raw/` prefix of the R2 bucket, or from a local folder via `LOCAL_SOURCE_PATH`. See
+`docs/runbooks/cloudflare-bootstrap.md` for uploading to `raw/` and running the extractor.
 
 ## Monorepo structure
 
-```
+```text
 packages/
 ├── shared/      # Shared TypeScript types (ImageRecord, etc.)
 ├── frontend/    # React + Vite + Leaflet SPA
-├── backend/     # Fastify REST API server
-└── extractor/   # Image ingestion job (replaces extract_exif.py)
+├── worker/      # Cloudflare Worker: serves the SPA and the /api/* JSON API
+└── extractor/   # Image ingestion job (runs in GitHub Actions)
 ```
 
 ## Commands
@@ -101,50 +80,52 @@ npm run build
 # Lint all packages
 npm run lint
 
-# Build backend
-npm run build --workspace=packages/backend
-
 # Build extractor
 npm run build --workspace=packages/extractor
+
+# Deploy the Worker (builds the frontend first)
+npm run build --workspace=packages/frontend
+npx wrangler deploy --config packages/worker/wrangler.toml
 ```
 
 ## Environment variables
 
-**Backend** (`packages/backend/`):
+### Worker (`wrangler.toml`)
 
-| Variable                 | Default     | Description                                                         |
-|--------------------------|-------------|---------------------------------------------------------------------|
-| `STORAGE_ENDPOINT`       | —           | S3/MinIO endpoint (e.g. `http://minio:9000`)                        |
-| `STORAGE_BUCKET`         | —           | Bucket name                                                         |
-| `STORAGE_ACCESS_KEY`     | —           | Access key ID                                                       |
-| `STORAGE_SECRET_KEY`     | —           | Secret access key                                                   |
-| `STORAGE_REGION`         | `us-east-1` | AWS region (MinIO ignores this)                                     |
-| `IMAGES_BASE_URL`        | —           | Public base URL for images (e.g. `http://localhost:9000/spyro-map`) |
-| `DB_REFRESH_INTERVAL_MS` | `300000`    | DB re-download interval ms (`0` = startup only)                     |
-| `PORT`                   | `3001`      | HTTP port                                                           |
+| Name               | Kind    | Value                                |
+| ------------------ | ------- | ------------------------------------- |
+| `IMAGES_BASE_URL`  | var     | `https://spyo-img.isntall.net`   |
+| `DB`               | binding | D1 database `spyo-map`               |
+| `ASSETS`           | binding | `packages/frontend/dist`             |
 
-**Extractor** (`packages/extractor/`): same `STORAGE_*` vars plus:
+### Extractor (environment)
 
-| Variable            | Default | Description                                      |
-|---------------------|---------|--------------------------------------------------|
-| `LOCAL_SOURCE_PATH` | —       | Read from local path instead of `raw/` in bucket |
+| Name                    | Required | Description                                     |
+| ----------------------- | -------- | ------------------------------------------------ |
+| `STORAGE_ENDPOINT`      | yes      | `https://<account-id>.r2.cloudflarestorage.com` |
+| `STORAGE_BUCKET`        | yes      | `spyo-map`                                      |
+| `STORAGE_ACCESS_KEY`    | yes      | R2 API token access key id                      |
+| `STORAGE_SECRET_KEY`    | yes      | R2 API token secret                             |
+| `STORAGE_REGION`        | no       | Defaults to `auto`                              |
+| `CLOUDFLARE_ACCOUNT_ID` | yes      | Cloudflare account id                           |
+| `CLOUDFLARE_API_TOKEN`  | yes      | Token with D1 Edit                              |
+| `D1_DATABASE_ID`        | yes      | Database id from `wrangler d1 create`           |
+| `LOCAL_SOURCE_PATH`     | no       | Ingest from a local folder instead of `raw/`    |
 
 ## Production deployment
 
-1. Push images to the `raw/` prefix of your S3 bucket
-2. Run the extractor as an ECS scheduled task (or one-off container)
-3. Deploy the backend container (ECS service, Fly.io, etc.) with `STORAGE_*` and `IMAGES_BASE_URL` env vars
-4. Build the frontend (`npm run build --workspace=packages/frontend`) and upload `packages/frontend/dist/` to S3/CDN
-5. Configure your CDN/load balancer to route `/api/*` to the backend
+Deploys run from GitHub Actions on push to `main` (`.github/workflows/deploy.yml`): install, lint, test, build the
+frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on demand (`.github/workflows/ingest.yml`). See
+`docs/runbooks/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and
+GitHub repository secrets).
 
-The `raw/` prefix and `images.db` should remain private. Only `images/` and `images/thumbnails/` need public read.
+The `raw/` prefix should remain private; only `images/` and `images/thumbnails/` need public read.
 
 ## API
 
 | Method | Endpoint                          | Description                                            |
-|--------|-----------------------------------|--------------------------------------------------------|
+|--------|------------------------------------|----------------------------------------------------------|
 | `GET`  | `/api/images`                     | All images (with absolute `imageUrl` + `thumbnailUrl`) |
 | `GET`  | `/api/images/:id`                 | Single image                                           |
 | `GET`  | `/api/images/:id/nearby?radius=1` | Nearby images within radius (km)                       |
-| `POST` | `/api/reload`                     | Re-download `images.db` from object storage            |
 | `GET`  | `/api/health`                     | `{ status: "ok" }`                                     |

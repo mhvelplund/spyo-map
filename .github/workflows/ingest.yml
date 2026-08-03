@@ -1,0 +1,41 @@
+name: Ingest Photos
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays at 03:00 UTC
+    - cron: '0 3 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    name: Process raw/ into R2 and D1
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extractor
+        run: npm run build --workspace=packages/extractor
+
+      - name: Run extractor
+        env:
+          STORAGE_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          STORAGE_BUCKET: spyo-map
+          STORAGE_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+          STORAGE_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          STORAGE_REGION: auto
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: npm start --workspace=packages/extractor
