@@ -173,14 +173,25 @@ describe('upsertImages', () => {
     expect(calls[0]!.params.every((p) => p !== undefined)).toBe(true);
   });
 
-  it('splits batches larger than twenty rows', async () => {
+  it('splits batches larger than six rows', async () => {
+    const { client, calls } = fakeClient();
+    await upsertImages(
+      client,
+      Array.from({ length: 13 }, (_, i) => row(`id${i}`)),
+    );
+    expect(calls).toHaveLength(3);
+    expect(calls[0]!.params).toHaveLength(6 * 16);
+    expect(calls[2]!.params).toHaveLength(1 * 16);
+  });
+
+  it('never binds more than one hundred parameters in a single query', async () => {
     const { client, calls } = fakeClient();
     await upsertImages(
       client,
       Array.from({ length: 45 }, (_, i) => row(`id${i}`)),
     );
-    expect(calls).toHaveLength(3);
-    expect(calls[0]!.params).toHaveLength(20 * 16);
-    expect(calls[2]!.params).toHaveLength(5 * 16);
+    for (const call of calls) {
+      expect(call.params.length).toBeLessThanOrEqual(100);
+    }
   });
 });
