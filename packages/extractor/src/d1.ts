@@ -1,8 +1,11 @@
 import type { Config } from './config.js';
 import type { ExifData } from './processor.js';
 
-/** Rows are written in chunks; 20 x 16 = 320 bind parameters, well under SQLite's limit. */
-const BATCH_SIZE = 20;
+/**
+ * Rows are written in chunks; D1's HTTP API caps bound parameters at 100 per
+ * query (much lower than local SQLite's 999), so 6 x 16 = 96 stays under it.
+ */
+const BATCH_SIZE = 6;
 
 const COLUMNS = [
   'id',
