@@ -28,6 +28,7 @@ dist-ssr
 images/
 images.db
 .env
+.env.github
 .worktrees/
 *.ignore.superpowers/
 .superpowers/
