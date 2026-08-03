@@ -9,10 +9,28 @@ JSON API backed by D1, and images are served directly from an R2 bucket.
 ## Development story
 
 This app was created by an old-fashioned developer using the dreaded vibe coding. It's a form physical log of my
-experiment. This app was created with [Kiro](https://kiro.dev/) using this initial prompt below. It is not my first
-attempt at creating a full app with Kiro, but it was the first _partially_ successful.
+experiment.
 
-**The process is described in the [blog post](https://www.swissarmyronin.dk/blog/kiro/).**
+I began work with [Kiro](https://kiro.dev/) in October 2025 using this initial prompt below. I'm not sure which model it
+was using since I didn't really know what I was doing It is not my first was not my first attempt at creating a full app
+with Kiro, but it was the first _partially_ successful[^1]. Kiro still made a complete mess of things, including baking
+in a Google maps API key in the published HTML. _Cool._
+
+[^1]: The process is described in the [blog post](https://www.swissarmyronin.dk/blog/kiro/).
+
+Around april 2026, I had gotten more of a hang of agentic coding, and gave it another try using GitHub CoPilot, and a
+mix of Anthropic and OpenAI models. They got the code working locally, but the suggested deployment in AWS was too
+expensive (not free), so I abandoned the project.
+
+Now, after working for a few months in the weird limbo that is a modern agentic-coder, I figured I could wrap it up. In
+the meantime I stumbled on the more generous free-tier of CloudFlare, and after CoPilot turned to trash, I had dropped
+the subscription in favour of a Claude.ai subscription.
+
+Sonnet ported the project to use Cloudflare Workers, R2 (S3 clone), and D1 (hosted SQLlite) in about a day, including
+the awesome runbook and GitHub actions to handle deployment and image extraction. It still has a strong AI slop
+code-smell, but it works and it's deployed.
+
+I learned a lot doing this, so it was well worth the effort.
 
 ## Architecture
 
