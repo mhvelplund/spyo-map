@@ -10,7 +10,9 @@ describe('LandingPage', () => {
       </BrowserRouter>
     );
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/explore geo-tagged photos/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/interactive map documenting my walks/i)
+    ).toBeInTheDocument();
   });
 
   it('should render a View Map button', () => {
