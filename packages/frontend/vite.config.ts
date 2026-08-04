@@ -20,10 +20,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Manual chunk splitting for better caching
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          leaflet: ['leaflet', 'react-leaflet'],
-          router: ['react-router'],
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return
+          if (/[\\/](react|react-dom)[\\/]/.test(id)) return 'vendor'
+          if (/[\\/](leaflet|react-leaflet)[\\/]/.test(id)) return 'leaflet'
+          if (/[\\/]react-router[\\/]/.test(id)) return 'router'
         },
 
         // Asset file naming for better caching

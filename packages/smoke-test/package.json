@@ -7,10 +7,10 @@
     "test": "node --experimental-vm-modules ../../node_modules/.bin/jest"
   },
   "devDependencies": {
-    "@types/jest": "^29.0.0",
-    "@types/node": "^24.6.0",
-    "jest": "^29.0.0",
-    "ts-jest": "^29.0.0",
-    "typescript": "~5.9.3"
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.1.2",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.12",
+    "typescript": "~6.0.3"
   }
 }

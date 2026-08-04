@@ -76,6 +76,8 @@ const MapPage: React.FC = () => {
     if (images.length === 0) return;
 
     if (!rawImageId) {
+      // Syncing local modal state to a router-owned URL param, not deriving state from props.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedImage(null);
       setNearbyGroup([]);
       return;
