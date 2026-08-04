@@ -7,10 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=packages/frontend",
-    "build": "npm run build --workspace=packages/frontend",
+    "dev": "nx run @spyo-map/frontend:dev",
+    "build": "nx run @spyo-map/frontend:build",
     "lint": "eslint .",
-    "test": "npm run test --workspaces --if-present"
+    "test": "nx run-many -t test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
