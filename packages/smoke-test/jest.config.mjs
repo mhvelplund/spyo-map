@@ -11,7 +11,6 @@ const config = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       useESM: true,
-      isolatedModules: true,
       tsconfig: {
         target: 'ES2022',
         module: 'ESNext',

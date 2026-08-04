@@ -4,7 +4,7 @@ import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { ImageRecord, MapViewProps } from '../types';
 import './MapContainer.css';
@@ -88,9 +88,9 @@ interface MapReadyCaptureProps {
 const MapReadyCapture: React.FC<MapReadyCaptureProps> = ({ onReady }) => {
   const map = useMap();
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
-  // Fire exactly once when the Leaflet map instance mounts.
   // Using a ref for the callback avoids the caller-stability contract.
+  useLayoutEffect(() => { onReadyRef.current = onReady; });
+  // Fire exactly once when the Leaflet map instance mounts.
   useEffect(() => { onReadyRef.current?.(map); }, [map]);
   return null;
 };
