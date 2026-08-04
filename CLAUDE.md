@@ -14,14 +14,18 @@ D1.
 
 ## Commands
 
-- `npm run dev --workspace=packages/worker` — `wrangler dev` on port 8787 (Worker + local D1).
-- `npm run dev --workspace=packages/frontend` — Vite dev server on port 3000, proxies `/api` to 8787.
-- `npm run lint` — ESLint across all workspace packages.
-- `npm run build --workspace=packages/frontend` — builds the SPA into `packages/frontend/dist/`.
-- `npm run build --workspace=packages/extractor` — compiles the extractor job.
+This repo uses Nx to orchestrate tasks across packages (task graph + local caching); the underlying
+tooling per package — Vite, Jest, wrangler, tsc — is unchanged.
+
+- `npx nx run @spyo-map/worker:dev` — `wrangler dev` on port 8787 (Worker + local D1).
+- `npx nx run @spyo-map/frontend:dev` (or `npm run dev`) — Vite dev server on port 3000, proxies `/api` to 8787.
+- `npm run lint` — ESLint across all workspace packages (whole-repo command, not per-project).
+- `npx nx run @spyo-map/frontend:build` (or `npm run build`) — builds the SPA into `packages/frontend/dist/`.
+- `npx nx run @spyo-map/extractor:build` — compiles the extractor job.
 - `npx wrangler deploy --config packages/worker/wrangler.toml` — deploys the Worker and assets.
-- `npm test` — runs all workspace tests. Run this before pushing a PR; all tests must pass.
-- `npm test --workspace=packages/worker` / `packages/extractor` / `packages/frontend` — single package.
+- `npx nx run-many -t test` (or `npm test`) — runs all workspace tests. Run this before pushing a PR; all tests must pass.
+- `npx nx run @spyo-map/worker:test` / `@spyo-map/extractor:test` / `@spyo-map/frontend:test` — single package.
+- `npx nx graph` — view the project dependency graph.
 
 See `docs/runbooks/cloudflare-bootstrap.md` for one-time setup and for running the extractor.
 
