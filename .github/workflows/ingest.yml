@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build extractor
-        run: npm run build --workspace=packages/extractor
+        run: npx nx run @spyo-map/extractor:build
 
       - name: Run extractor
         env:
