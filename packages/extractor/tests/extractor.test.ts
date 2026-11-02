@@ -206,6 +206,43 @@ describe('runExtractor over the bucket source', () => {
     expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/x.jpg', 'failed/x.jpg');
   });
 
+  it('leaves the object in raw/ when putObject rejects', async () => {
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    mockPutObject.mockRejectedValue(new Error('R2 503'));
+    await runExtractor(CONFIG, s3, d1);
+    expect(mockMoveObject).not.toHaveBeenCalled();
+    expect(mockDeleteObject).not.toHaveBeenCalled();
+    expect(mockUpsertImages).toHaveBeenCalledWith(d1, []);
+  });
+
+  it('leaves the object in raw/ when the download rejects', async () => {
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    mockGetObjectWithMetadata.mockRejectedValue(new Error('network'));
+    await runExtractor(CONFIG, s3, d1);
+    expect(mockMoveObject).not.toHaveBeenCalled();
+    expect(mockDeleteObject).not.toHaveBeenCalled();
+  });
+
+  it.each(['7abc', '0', '-3'])('falls back to uploader 1 for uploader-id %s', async (bad) => {
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    mockGetObjectWithMetadata.mockResolvedValue({
+      body: Buffer.from('jpeg'),
+      metadata: { 'uploader-id': bad },
+    });
+    await runExtractor(CONFIG, s3, d1);
+    const rows = mockUpsertImages.mock.calls[0]![1] as ImageInsert[];
+    expect(rows[0]!.uploaderId).toBe(1);
+  });
+
+  it('accepts an upper-case declared sha256', async () => {
+    const sha = createHash('sha256').update('jpeg').digest('hex').toUpperCase();
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    mockGetObjectWithMetadata.mockResolvedValue({ body: Buffer.from('jpeg'), metadata: { sha256: sha } });
+    await runExtractor(CONFIG, s3, d1);
+    expect(mockMoveObject).not.toHaveBeenCalled();
+    expect((mockUpsertImages.mock.calls[0]![1] as ImageInsert[])).toHaveLength(1);
+  });
+
   it('moves a photo that errors during processing to failed/', async () => {
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
     mockProcessImage.mockRejectedValue(new Error('corrupt'));

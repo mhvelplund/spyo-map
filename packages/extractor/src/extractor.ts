@@ -217,7 +217,7 @@ async function processBucketSource(
 
       const contentHash = sha256Hex(buffer);
       const declaredHash = metadata["sha256"];
-      if (declaredHash && declaredHash !== contentHash) {
+      if (declaredHash && declaredHash.toLowerCase() !== contentHash) {
         console.error(
           `  Error: sha256 mismatch for ${obj.key} (declared ${declaredHash}, actual ${contentHash}).`,
         );
@@ -225,17 +225,27 @@ async function processBucketSource(
         continue;
       }
 
-      const parsedUploader = parseInt(metadata["uploader-id"] ?? "", 10);
-      const uploaderId = Number.isNaN(parsedUploader) ? 1 : parsedUploader;
+      const declaredUploader = metadata["uploader-id"] ?? "";
+      const uploaderId = /^[1-9][0-9]*$/.test(declaredUploader)
+        ? parseInt(declaredUploader, 10)
+        : 1;
 
-      const exif = await extractExif(buffer);
-      if (!exif) {
-        console.warn(`  Warning: no GPS data — moving to failed/.`);
+      let exif: Awaited<ReturnType<typeof extractExif>>;
+      let processed: Awaited<ReturnType<typeof processImage>>;
+      try {
+        exif = await extractExif(buffer);
+        if (!exif) {
+          console.warn(`  Warning: no GPS data — moving to failed/.`);
+          keysToFail.push(obj.key);
+          continue;
+        }
+        processed = await processImage(buffer);
+      } catch (err) {
+        console.error(`  Error processing ${obj.key}:`, err);
         keysToFail.push(obj.key);
         continue;
       }
-
-      const { fullSize, thumbnail } = await processImage(buffer);
+      const { fullSize, thumbnail } = processed;
       await putObject(s3, config.storageBucket, `images/${id}.jpg`, fullSize, "image/jpeg");
       await putObject(
         s3,
@@ -253,8 +263,8 @@ async function processBucketSource(
       });
       keysToDelete.push(obj.key);
     } catch (err) {
-      console.error(`  Error processing ${obj.key}:`, err);
-      keysToFail.push(obj.key);
+      // Transient (download/upload) error: leave the object in raw/ for the next run.
+      console.error(`  Error handling ${obj.key}; leaving it in raw/:`, err);
     }
   }
 
