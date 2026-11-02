@@ -14,8 +14,8 @@ D1.
 
 ## Commands
 
-This repo uses Nx to orchestrate tasks across packages (task graph + local caching); the underlying
-tooling per package — Vite, Jest, wrangler, tsc — is unchanged.
+This repo uses Nx to orchestrate tasks across packages (task graph + local caching); the underlying tooling per package
+— Vite, Jest, wrangler, tsc — is unchanged.
 
 - `npx nx run @spyo-map/worker:dev` — `wrangler dev` on port 8787 (Worker + local D1).
 - `npx nx run @spyo-map/frontend:dev` (or `npm run dev`) — Vite dev server on port 3000, proxies `/api` to 8787.
@@ -23,7 +23,8 @@ tooling per package — Vite, Jest, wrangler, tsc — is unchanged.
 - `npx nx run @spyo-map/frontend:build` (or `npm run build`) — builds the SPA into `packages/frontend/dist/`.
 - `npx nx run @spyo-map/extractor:build` — compiles the extractor job.
 - `npx wrangler deploy --config packages/worker/wrangler.toml` — deploys the Worker and assets.
-- `npx nx run-many -t test` (or `npm test`) — runs all workspace tests. Run this before pushing a PR; all tests must pass.
+- `npx nx run-many -t test` (or `npm test`) — runs all workspace tests. Run this before pushing a PR; all tests must
+  pass.
 - `npx nx run @spyo-map/worker:test` / `@spyo-map/extractor:test` / `@spyo-map/frontend:test` — single package.
 - `npx nx graph` — view the project dependency graph.
 
@@ -104,3 +105,8 @@ frontend work can proceed in parallel branches without merge conflicts.
 
 - Be terse and direct. No filler, no preamble, no summaries unless asked.
 - State the answer or action, then stop. This applies to chat responses only, not generated code/comments.
+
+## Workflow
+
+**Never commit directly to `main`** unless explicitly asked. To start a new feature, branch from a fresh `main`:
+`git checkout main && git pull` first, then `git checkout -b <feature-branch>`. Land work through a pull request.

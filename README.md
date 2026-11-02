@@ -110,16 +110,16 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 
 ### Worker (`wrangler.toml`)
 
-| Name               | Kind    | Value                                |
-| ------------------ | ------- | ------------------------------------- |
-| `IMAGES_BASE_URL`  | var     | `https://spyo-img.isntall.net`   |
-| `DB`               | binding | D1 database `spyo-map`               |
-| `ASSETS`           | binding | `packages/frontend/dist`             |
+| Name              | Kind    | Value                          |
+|-------------------|---------|--------------------------------|
+| `IMAGES_BASE_URL` | var     | `https://spyo-img.isntall.net` |
+| `DB`              | binding | D1 database `spyo-map`         |
+| `ASSETS`          | binding | `packages/frontend/dist`       |
 
 ### Extractor (environment)
 
 | Name                    | Required | Description                                     |
-| ----------------------- | -------- | ------------------------------------------------ |
+|-------------------------|----------|-------------------------------------------------|
 | `STORAGE_ENDPOINT`      | yes      | `https://<account-id>.r2.cloudflarestorage.com` |
 | `STORAGE_BUCKET`        | yes      | `spyo-map`                                      |
 | `STORAGE_ACCESS_KEY`    | yes      | R2 API token access key id                      |
@@ -142,7 +142,7 @@ The `raw/` prefix should remain private; only `images/` and `images/thumbnails/`
 ## API
 
 | Method | Endpoint                          | Description                                            |
-|--------|------------------------------------|----------------------------------------------------------|
+|--------|-----------------------------------|--------------------------------------------------------|
 | `GET`  | `/api/images`                     | All images (with absolute `imageUrl` + `thumbnailUrl`) |
 | `GET`  | `/api/images/:id`                 | Single image                                           |
 | `GET`  | `/api/images/:id/nearby?radius=1` | Nearby images within radius (km)                       |
