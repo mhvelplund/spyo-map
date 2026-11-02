@@ -8,6 +8,11 @@ export function normaliseEmail(s: string): string {
   return e;
 }
 
+export function displayName(s: string): string {
+  if (s.trim() === '' || s.includes('@')) throw new Error('invalid display name');
+  return s;
+}
+
 function intId(id: number): number {
   if (!Number.isInteger(id)) throw new Error('invalid id');
   return id;
@@ -16,7 +21,7 @@ function intId(id: number): number {
 export function addUploaderSql(name: string, email: string): string {
   const e = normaliseEmail(email);
   return (
-    `INSERT INTO uploaders (display_name, created_at, disabled_at) VALUES (${sqlString(name)}, datetime('now'), NULL); ` +
+    `INSERT INTO uploaders (display_name, created_at, disabled_at) VALUES (${sqlString(displayName(name))}, datetime('now'), NULL); ` +
     `INSERT INTO uploader_emails (email, uploader_id) VALUES (${sqlString(e)}, last_insert_rowid());`
   );
 }
@@ -33,7 +38,7 @@ export function listUploadersSql(): string {
 }
 
 export function renameSql(id: number, name: string): string {
-  return `UPDATE uploaders SET display_name = ${sqlString(name)} WHERE id = ${intId(id)};`;
+  return `UPDATE uploaders SET display_name = ${sqlString(displayName(name))} WHERE id = ${intId(id)};`;
 }
 
 export function setDisabledSql(id: number, disabled: boolean): string {

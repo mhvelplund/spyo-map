@@ -57,6 +57,21 @@ describe('runCli', () => {
     expect(r2.d1).not.toHaveBeenCalled();
   });
 
+  it.each([[''], ['   '], ['a@b'], ['@']])('add and rename reject display name %j without calling the runner', async (name) => {
+    const r = fake();
+    expect(await runCli(['uploaders', 'add', name, 'x@y.z'], r)).not.toBe(0);
+    expect(await runCli(['uploaders', 'rename', '2', name], r)).not.toBe(0);
+    expect(r.d1).not.toHaveBeenCalled();
+    expect(r.r2Delete).not.toHaveBeenCalled();
+  });
+
+  it('add and rename accept a normal display name', async () => {
+    const r = fake();
+    expect(await runCli(['uploaders', 'add', 'Jane D', 'x@y.z'], r)).toBe(0);
+    expect(await runCli(['uploaders', 'rename', '2', 'JD'], r)).toBe(0);
+    expect(r.d1).toHaveBeenCalledTimes(2);
+  });
+
   it('unknown command fails', async () => {
     const r = fake();
     expect(await runCli(['nope'], r)).not.toBe(0);
