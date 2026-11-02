@@ -1,0 +1,66 @@
+.upload-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.upload-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.upload-header h1 {
+  margin: 0;
+  margin-right: auto;
+}
+
+.upload-button {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  color: white;
+  background-color: #667eea;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.upload-notice {
+  padding: 0.75rem 1rem;
+  background: #fff7e0;
+  border-left: 4px solid #e0a800;
+}
+
+.upload-drop {
+  margin: 1rem 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  border: 2px dashed #667eea;
+  border-radius: 0.5rem;
+}
+
+.upload-added {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.upload-added li {
+  width: 120px;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.upload-added img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  display: block;
+}

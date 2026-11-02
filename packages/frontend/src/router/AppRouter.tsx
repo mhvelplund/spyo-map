@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router';
 import LandingPage from '../components/LandingPage';
 import MapPage from '../components/MapPage';
+import UploadPage from '../components/UploadPage';
 
 export const AppRouter = () => {
   return (
@@ -16,6 +17,9 @@ export const AppRouter = () => {
 
       {/* Deep-link support: redirect /image/:imageId to /map/image/:imageId */}
       <Route path="/image/:imageId" element={<Navigate to="/map/image/:imageId" replace />} />
+
+      {/* Hidden upload page (unlinked) */}
+      <Route path="/upload" element={<UploadPage />} />
 
       {/* Catch-all: redirect to landing */}
       <Route path="*" element={<Navigate to="/" replace />} />
