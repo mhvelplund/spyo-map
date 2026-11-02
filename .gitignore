@@ -38,3 +38,4 @@ images.db
 *.ignore.superpowers/
 .superpowers/
 docs/superpowers/
+HANDOFF.md
