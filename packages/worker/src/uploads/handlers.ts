@@ -45,13 +45,69 @@ export async function handleUploadCheck(request: Request, env: Env): Promise<Res
   return json({ known } satisfies UploadCheckResponse);
 }
 
-function decodeFilename(header: string | null, fallback: string): string {
-  if (!header) return fallback;
+const MAX_FILENAME_HEADER = 1024;
+
+function decodeFilename(header: string, fallback: string): string {
   try {
     return decodeURIComponent(header);
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Reads just enough of the body to sniff the magic bytes, then returns a stream that replays those bytes and
+ * forwards the rest. Never buffers the whole body (no arrayBuffer(), no tee()).
+ */
+async function sniffBody(
+  body: ReadableStream<Uint8Array>,
+): Promise<{ ext: ReturnType<typeof detectImageType>; stream: ReadableStream<Uint8Array> | null }> {
+  const reader = body.getReader();
+  const head: Uint8Array[] = [];
+  let headLength = 0;
+  while (headLength < 4) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    head.push(value);
+    headLength += value.byteLength;
+  }
+  const magic = new Uint8Array(Math.min(4, headLength));
+  let offset = 0;
+  for (const chunk of head) {
+    if (offset === magic.length) break;
+    const n = Math.min(chunk.byteLength, magic.length - offset);
+    magic.set(chunk.subarray(0, n), offset);
+    offset += n;
+  }
+  const ext = detectImageType(magic);
+  if (!ext) {
+    await reader.cancel().catch(() => {});
+    return { ext, stream: null };
+  }
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of head) controller.enqueue(chunk);
+    },
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  return { ext, stream };
+}
+
+/** R2 needs a known length in the Workers runtime; FixedLengthStream provides it. Absent in tests. */
+function withKnownLength(stream: ReadableStream<Uint8Array>, length: number): ReadableStream<Uint8Array> {
+  const Fixed = (globalThis as { FixedLengthStream?: new (n: number) => TransformStream<Uint8Array, Uint8Array> })
+    .FixedLengthStream;
+  if (!Fixed) return stream;
+  const fixed = new Fixed(length);
+  stream.pipeTo(fixed.writable).catch(() => {});
+  return fixed.readable;
 }
 
 export async function handleUploadPut(
@@ -74,30 +130,36 @@ export async function handleUploadPut(
   const [known] = await findKnownHashes(env.DB, [sha256]);
   if (known) return json({ status: "duplicate" } satisfies UploadOutcome);
 
-  const body = await request.arrayBuffer();
-  const ext = detectImageType(new Uint8Array(body, 0, Math.min(4, body.byteLength)));
-  if (!ext) return rejected(REJECT_COPY.wrongType, 400);
+  if (!request.body) return rejected(REJECT_COPY.wrongType, 400);
+  const { ext, stream } = await sniffBody(request.body);
+  if (!ext || !stream) return rejected(REJECT_COPY.wrongType, 400);
 
   const rawKey = `raw/${sha256}.${ext}`;
-  const sentName = request.headers.get("x-original-filename");
+  const fallbackName = `${sha256}.${ext}`;
+  const header = request.headers.get("x-original-filename");
+  const sentName = header && header.length <= MAX_FILENAME_HEADER ? header : null;
   try {
-    await env.BUCKET.put(rawKey, body, {
+    await env.BUCKET.put(rawKey, withKnownLength(stream, length), {
       httpMetadata: { contentType: ext === "jpg" ? "image/jpeg" : "image/tiff" },
       customMetadata: {
         "uploader-id": String(uploader.id),
         sha256,
-        "original-name": sentName ?? `${sha256}.${ext}`,
+        "original-name": sentName ?? fallbackName,
       },
     });
   } catch {
     return json({ error: "Upload failed" }, 500);
   }
 
-  await recordUpload(env.DB, {
-    contentHash: sha256,
-    uploaderId: uploader.id,
-    originalFilename: decodeFilename(sentName, `${sha256}.${ext}`),
-    rawKey,
-  });
+  try {
+    await recordUpload(env.DB, {
+      contentHash: sha256,
+      uploaderId: uploader.id,
+      originalFilename: sentName === null ? fallbackName : decodeFilename(sentName, fallbackName),
+      rawKey,
+    });
+  } catch {
+    return json({ error: "Upload failed" }, 500);
+  }
   return json({ status: "added" } satisfies UploadOutcome, 201);
 }

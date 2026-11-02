@@ -45,9 +45,16 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
     if (rawId === "check") {
       return request.method === "POST" ? handleUploadCheck(request, env) : methodNotAllowed();
     }
-    return request.method === "PUT"
-      ? handleUploadPut(request, env, decodeURIComponent(rawId))
-      : methodNotAllowed();
+    if (request.method !== "PUT") return methodNotAllowed();
+    // A malformed escape can never be a valid hash; pass it through so the handler's
+    // origin/session checks still run first and it then answers 400 bad-hash.
+    let hash = rawId;
+    try {
+      hash = decodeURIComponent(rawId);
+    } catch {
+      // keep rawId
+    }
+    return handleUploadPut(request, env, hash);
   }
 
   if (resource !== "images") return notFound();
