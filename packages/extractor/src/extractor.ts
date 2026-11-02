@@ -10,9 +10,34 @@ import {
   type ImageInsert,
 } from "./d1.js";
 import { extractExif, processImage } from "./processor.js";
-import { deleteObject, getObject, listObjects, putObject } from "./storage.js";
+import {
+  deleteObject,
+  getObjectWithMetadata,
+  listObjects,
+  moveObject,
+  putObject,
+} from "./storage.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".tiff", ".tif"]);
+
+function sha256Hex(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function failedKey(key: string): string {
+  return key.startsWith("raw/") ? `failed/${key.slice(4)}` : `failed/${key}`;
+}
+
+function originalName(metadata: Record<string, string>, key: string): string {
+  const fallback = key.split("/").pop() ?? key;
+  const encoded = metadata["original-name"];
+  if (!encoded) return fallback;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return fallback;
+  }
+}
 
 function generateIdFromS3(key: string, etag: string): string {
   return createHash("md5")
@@ -63,7 +88,7 @@ export async function runExtractor(
     return;
   }
 
-  const { rows, keysToDelete } = await processBucketSource(config, s3, existingIds);
+  const { rows, keysToDelete, keysToFail } = await processBucketSource(config, s3, existingIds);
 
   // Commit metadata before deleting anything, so a failure never loses a photo.
   await upsertImages(d1, rows);
@@ -77,6 +102,16 @@ export async function runExtractor(
       console.warn(`Warning: could not delete ${key} from raw/:`, err);
     }
   }
+
+  for (const key of keysToFail) {
+    try {
+      await moveObject(s3, config.storageBucket, key, failedKey(key));
+      console.log(`Moved to failed/: ${key}`);
+    } catch (err) {
+      console.warn(`Warning: could not move ${key} to failed/:`, err);
+    }
+  }
+  console.log(`Failed: ${keysToFail.length} object(s)`);
 
   console.log("Extractor complete.");
 }
@@ -125,7 +160,13 @@ async function processLocalSource(
         thumbnail,
         "image/jpeg",
       );
-      rows.push({ id, path: relPath, exif });
+      rows.push({
+        id,
+        path: relPath,
+        exif,
+        uploaderId: 1,
+        contentHash: sha256Hex(buffer),
+      });
     } catch (err) {
       console.error(`  Error processing ${relPath}:`, err);
     }
@@ -139,7 +180,7 @@ async function processBucketSource(
   config: Config,
   s3: S3Client,
   existingIds: Set<string>,
-): Promise<{ rows: ImageInsert[]; keysToDelete: string[] }> {
+): Promise<{ rows: ImageInsert[]; keysToDelete: string[]; keysToFail: string[] }> {
   console.log(`Scanning bucket ${config.storageBucket}/raw/ ...`);
   const objects = await listObjects(s3, config.storageBucket, "raw/");
   const imageObjects = objects.filter((o) => {
@@ -150,12 +191,12 @@ async function processBucketSource(
 
   const rows: ImageInsert[] = [];
   const keysToDelete: string[] = [];
+  const keysToFail: string[] = [];
   let skipped = 0;
 
   for (let i = 0; i < imageObjects.length; i++) {
     const obj = imageObjects[i]!;
     const id = generateIdFromS3(obj.key, obj.etag);
-    const filename = obj.key.split("/").pop() ?? obj.key;
 
     console.log(`Processing ${i + 1}/${imageObjects.length}: ${obj.key}`);
 
@@ -167,15 +208,30 @@ async function processBucketSource(
     }
 
     try {
-      const buffer = await getObject(s3, config.storageBucket, obj.key);
-      if (!buffer) {
+      const downloaded = await getObjectWithMetadata(s3, config.storageBucket, obj.key);
+      if (!downloaded) {
         console.warn(`  Warning: could not download ${obj.key} — skipping.`);
         continue;
       }
+      const { body: buffer, metadata } = downloaded;
+
+      const contentHash = sha256Hex(buffer);
+      const declaredHash = metadata["sha256"];
+      if (declaredHash && declaredHash !== contentHash) {
+        console.error(
+          `  Error: sha256 mismatch for ${obj.key} (declared ${declaredHash}, actual ${contentHash}).`,
+        );
+        keysToFail.push(obj.key);
+        continue;
+      }
+
+      const parsedUploader = parseInt(metadata["uploader-id"] ?? "", 10);
+      const uploaderId = Number.isNaN(parsedUploader) ? 1 : parsedUploader;
 
       const exif = await extractExif(buffer);
       if (!exif) {
-        console.warn(`  Warning: no GPS data — skipping.`);
+        console.warn(`  Warning: no GPS data — moving to failed/.`);
+        keysToFail.push(obj.key);
         continue;
       }
 
@@ -188,13 +244,20 @@ async function processBucketSource(
         thumbnail,
         "image/jpeg",
       );
-      rows.push({ id, path: filename, exif });
+      rows.push({
+        id,
+        path: originalName(metadata, obj.key),
+        exif,
+        uploaderId,
+        contentHash,
+      });
       keysToDelete.push(obj.key);
     } catch (err) {
       console.error(`  Error processing ${obj.key}:`, err);
+      keysToFail.push(obj.key);
     }
   }
 
   console.log(`Done: ${rows.length} processed, ${skipped} skipped.`);
-  return { rows, keysToDelete };
+  return { rows, keysToDelete, keysToFail };
 }
