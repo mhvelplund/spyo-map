@@ -56,7 +56,7 @@ comes from the Worker's REST API, which reads D1 directly on every request.
 - [mise](https://mise.jdx.dev/) (optional, for tool version management)
 - A Cloudflare account is only needed for deploying; local dev uses `wrangler`'s local D1 emulation.
 
-See `docs/runbooks/cloudflare-bootstrap.md` for one-time Cloudflare setup (R2 bucket, D1 database, API tokens) and for
+See `docs/cloudflare-bootstrap.md` for one-time Cloudflare setup (R2 bucket, D1 database, API tokens) and for
 running the extractor against a live bucket.
 
 ### Start the Worker and frontend
@@ -71,7 +71,7 @@ npm run dev --workspace=packages/frontend  # Vite dev server at http://localhost
 ### Ingest photos
 
 Photos are ingested from the `raw/` prefix of the R2 bucket, or from a local folder via `LOCAL_SOURCE_PATH`. See
-`docs/runbooks/cloudflare-bootstrap.md` for uploading to `raw/` and running the extractor.
+`docs/cloudflare-bootstrap.md` for uploading to `raw/` and running the extractor.
 
 ## Monorepo structure
 
@@ -134,7 +134,7 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 
 Deploys run from GitHub Actions on push to `main` (`.github/workflows/deploy.yml`): install, lint, test, build the
 frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on demand (`.github/workflows/ingest.yml`). See
-`docs/runbooks/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and
+`docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and
 GitHub repository secrets).
 
 The `raw/` prefix should remain private; only `images/` and `images/thumbnails/` need public read.

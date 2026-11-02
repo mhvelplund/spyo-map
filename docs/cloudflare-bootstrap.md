@@ -161,13 +161,14 @@ GOOGLE_CLIENT_SECRET=...
 
 ## 11. Migration 0002 (uploaders and uploads)
 
-Apply the schema again after pulling the upload system; it is idempotent for already-applied migrations:
+Apply the schema again after pulling the upload system; it applies only pending migrations:
 
 ```bash
 npx wrangler d1 migrations apply spyo-map --remote --config packages/worker/wrangler.toml
 ```
 
-It adds the `uploaders` and `uploads` tables and `images.uploader_id`, and seeds uploader 1 (`MH`).
+It adds the `uploaders`, `uploader_emails` and `uploads` tables and the `uploader_id` and `content_hash` columns on
+`images`, and seeds uploader 1 (`MH`).
 
 ## Managing uploaders
 
@@ -230,7 +231,7 @@ tables and every R2 object under `raw/`, `failed/` and `images/`. It is irrevers
 1. Clear the tables:
 
    ```bash
-   npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml      --command "DELETE FROM images; DELETE FROM uploads;"
+   npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "DELETE FROM images; DELETE FROM uploads;"
    ```
 
 2. Delete everything under `raw/`, `failed/` and `images/` with `npx wrangler r2 object delete --remote
@@ -240,10 +241,18 @@ tables and every R2 object under `raw/`, `failed/` and `images/`. It is irrevers
 
 ## Release checklist
 
+0. Apply migration 0002 remotely before merging any upload layer above upload/schema to main (deploy.yml now does
+   this automatically on push; verify the CI token has D1 edit permission).
 1. Do the manual Google sign-in check, local (`http://localhost:8787`) and production.
 2. Confirm that uploads from a browser over HTTP/2 reach the Worker with `Content-Length`. If they do not, every
    upload gets 413.
-3. Run the E2E steps from the upload-system plan.
+3. Run the end-to-end check:
+   1. Sign in with Google.
+   2. Drop 5 photos, including 1 duplicate and 1 without GPS, and check the Added, Duplicates and Rejected lists.
+   3. Try an account that is not on the allow list; it is refused.
+   4. Run **Ingest Photos**; the lightbox shows "Uploaded by MH".
+   5. Grep the built `dist/` and `curl https://spyo-map.isntall.net/api/images` for `@`; there are none.
+   6. Perform the [release reset](#release-reset).
 
 ## Checking free-tier usage
 
