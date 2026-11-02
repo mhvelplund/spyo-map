@@ -1,3 +1,7 @@
 [tools]
 node = "lts"
 pre-commit = "latest"
+go = "latest"
+gh = "latest"
+"go:github.com/mhvelplund/git-stack/cmd/git-stack" = "latest"
+"go:github.com/mhvelplund/git-stack/cmd/git-stack-github" = "latest"
