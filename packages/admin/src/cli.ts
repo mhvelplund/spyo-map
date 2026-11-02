@@ -6,7 +6,7 @@ import {
 import { wranglerRunner, type Runner } from './wrangler.js';
 
 const USAGE = `usage:
-  uploaders list | add <name> <email> | email <id> <email> | rename <id> <name> | disable <id> | enable <id>
+  uploaders list | add <name> <email> | add-email <id> <email> | rename <id> <name> | disable <id> | enable <id>
   uploads forget <sha256>
   images remove <imageId>
   (add --remote to act on production; default is local)`;
@@ -32,7 +32,7 @@ export async function runCli(argv: string[], runner: Runner): Promise<number> {
       switch (cmd) {
         case 'list': need(rest, 0); sql = listUploadersSql(); break;
         case 'add': { const [n, e] = need(rest, 2); sql = addUploaderSql(n, e); break; }
-        case 'email': { const [i, e] = need(rest, 2); sql = addEmailSql(parseId(i), e); break; }
+        case 'add-email': { const [i, e] = need(rest, 2); sql = addEmailSql(parseId(i), e); break; }
         case 'rename': { const [i, n] = need(rest, 2); sql = renameSql(parseId(i), n); break; }
         case 'disable': { const [i] = need(rest, 1); sql = setDisabledSql(parseId(i), true); break; }
         case 'enable': { const [i] = need(rest, 1); sql = setDisabledSql(parseId(i), false); break; }

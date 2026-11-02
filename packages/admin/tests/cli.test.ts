@@ -46,6 +46,17 @@ describe('runCli', () => {
     expect(await runCli(['uploads', 'forget', 'a'.repeat(64)], r)).toBe(0);
   });
 
+  it('add-email normalises email and validates id', async () => {
+    const r = fake();
+    expect(await runCli(['uploaders', 'add-email', '2', ' X@Y.Z '], r)).toBe(0);
+    expect(r.d1.mock.calls[0][0]).toContain("'x@y.z'");
+    expect(r.d1.mock.calls[0][0]).toContain(', 2)');
+    const r2 = fake();
+    expect(await runCli(['uploaders', 'add-email', 'abc', 'x@y.z'], r2)).not.toBe(0);
+    expect(await runCli(['uploaders', 'add-email', '2', 'nope'], r2)).not.toBe(0);
+    expect(r2.d1).not.toHaveBeenCalled();
+  });
+
   it('unknown command fails', async () => {
     const r = fake();
     expect(await runCli(['nope'], r)).not.toBe(0);
