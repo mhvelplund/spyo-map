@@ -8,7 +8,7 @@ import {
 import { parseCookies, serializeCookie } from '../src/auth/cookies.js';
 import { randomToken, codeChallengeS256 } from '../src/auth/pkce.js';
 
-const SECRET = 'test-secret-0123456789';
+const SECRET = 'test-session-secret-0123456789abcdef';
 const NOW = 1_800_000_000;
 
 function flip(s: string, i: number): string {
@@ -63,7 +63,7 @@ describe('signSession / verifySession', () => {
 
   it('rejects a wrong secret', async () => {
     const token = await signSession({ uploaderId: 7, exp: NOW + 60 }, SECRET);
-    expect(await verifySession(token, 'other-secret', NOW)).toBeNull();
+    expect(await verifySession(token, 'other-session-secret-0123456789abcdef', NOW)).toBeNull();
   });
 
   it('rejects malformed tokens', async () => {
@@ -75,6 +75,27 @@ describe('signSession / verifySession', () => {
   it('rejects a validly signed payload of the wrong shape', async () => {
     const bad = await signSession({ uploaderId: 'x', exp: NOW + 60 } as never, SECRET);
     expect(await verifySession(bad, SECRET, NOW)).toBeNull();
+  });
+
+  it('treats a secret shorter than 32 characters like a missing one', async () => {
+    const short = 'x'.repeat(31);
+    await expect(signSession({ uploaderId: 7, exp: NOW + 60 }, short)).rejects.toThrow();
+    // A token genuinely signed with the short key must still not verify.
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(short),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const body = Buffer.from(JSON.stringify({ uploaderId: 7, exp: NOW + 60 })).toString('base64url');
+    const sig = Buffer.from(
+      await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)),
+    ).toString('base64url');
+    expect(await verifySession(`${body}.${sig}`, short, NOW)).toBeNull();
+    const ok = 'x'.repeat(32);
+    const token = await signSession({ uploaderId: 7, exp: NOW + 60 }, ok);
+    expect(await verifySession(token, ok, NOW)).not.toBeNull();
   });
 
   it('refuses to sign or verify with an empty secret', async () => {

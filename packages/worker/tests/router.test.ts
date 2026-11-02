@@ -33,7 +33,7 @@ const FIXTURE: ImageRecord = {
 };
 
 const DB = { marker: 'db' };
-const SECRET = 'test-secret-0123456789';
+const SECRET = 'test-session-secret-0123456789abcdef';
 const env = {
   DB,
   ASSETS: {},
@@ -189,8 +189,33 @@ describe('GET /api/me', () => {
     mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
     const expired = await signSession({ uploaderId: 1, exp: nowSec() - 1 }, SECRET);
     expect((await handleApiRequest(me(`spyo_session=${expired}`), env)).status).toBe(401);
-    const forged = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, 'wrong-secret');
+    const forged = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, 'wrong-session-secret-0123456789abcdef');
     expect((await handleApiRequest(me(`spyo_session=${forged}`), env)).status).toBe(401);
+    expect(mockFindUploaderById).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the session secret is shorter than 32 characters', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    // A token genuinely HMAC-signed with the short key, bypassing signSession's guard.
+    const short = 'x'.repeat(31);
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(short),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const body = Buffer.from(JSON.stringify({ uploaderId: 1, exp: nowSec() + 60 })).toString(
+      'base64url',
+    );
+    const sig = Buffer.from(
+      await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)),
+    ).toString('base64url');
+    const res = await handleApiRequest(me(`spyo_session=${body}.${sig}`), {
+      ...(env as object),
+      SESSION_SECRET: short,
+    } as never);
+    expect(res.status).toBe(401);
     expect(mockFindUploaderById).not.toHaveBeenCalled();
   });
 

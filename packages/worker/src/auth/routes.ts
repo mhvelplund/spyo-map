@@ -3,7 +3,12 @@ import { findActiveUploaderByEmail } from "../services/uploaders.js";
 import { parseCookies, serializeCookie } from "./cookies.js";
 import { google } from "./google.js";
 import { codeChallengeS256, constantTimeEqual, randomToken } from "./pkce.js";
-import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession } from "./session.js";
+import {
+  isUsableSessionSecret,
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+  signSession,
+} from "./session.js";
 
 const OAUTH_COOKIE = "spyo_oauth";
 const OAUTH_COOKIE_PATH = "/auth";
@@ -36,7 +41,9 @@ export function isSameOrigin(request: Request): boolean {
 }
 
 function isConfigured(env: Env): boolean {
-  return Boolean(env.SESSION_SECRET && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  return Boolean(
+    isUsableSessionSecret(env.SESSION_SECRET) && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,
+  );
 }
 
 const redirectUriFor = (request: Request): string =>
@@ -82,9 +89,10 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
     return redirect(UPLOAD_ERROR, [clear]);
   }
 
-  let email: string | null;
+  // Any throw from Google, D1 or signing lands on error=1 and still clears spyo_oauth.
+  let token: string;
   try {
-    email = await google.exchangeForVerifiedEmail(
+    const email = await google.exchangeForVerifiedEmail(
       {
         code,
         codeVerifier: verifier,
@@ -94,18 +102,18 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
       },
       fetchFn,
     );
+    if (!email) return redirect(UPLOAD_DENIED, [clear]);
+
+    const uploader = await findActiveUploaderByEmail(env.DB, email);
+    if (!uploader) return redirect(UPLOAD_DENIED, [clear]);
+
+    token = await signSession(
+      { uploaderId: uploader.id, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS },
+      env.SESSION_SECRET,
+    );
   } catch {
     return redirect(UPLOAD_ERROR, [clear]);
   }
-  if (!email) return redirect(UPLOAD_DENIED, [clear]);
-
-  const uploader = await findActiveUploaderByEmail(env.DB, email);
-  if (!uploader) return redirect(UPLOAD_DENIED, [clear]);
-
-  const token = await signSession(
-    { uploaderId: uploader.id, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS },
-    env.SESSION_SECRET,
-  );
   const session = serializeCookie(SESSION_COOKIE, token, {
     maxAge: SESSION_TTL_SECONDS,
     path: "/",

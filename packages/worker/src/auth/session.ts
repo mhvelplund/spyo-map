@@ -8,6 +8,12 @@ export interface SessionPayload {
 
 export const SESSION_COOKIE = "spyo_session";
 export const SESSION_TTL_SECONDS = 604800;
+/** Shorter (or missing) secrets are treated as "not configured": never sign or verify with them. */
+export const MIN_SESSION_SECRET_LENGTH = 32;
+
+export function isUsableSessionSecret(secret: string | undefined | null): secret is string {
+  return typeof secret === "string" && secret.length >= MIN_SESSION_SECRET_LENGTH;
+}
 
 function hmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
@@ -19,9 +25,9 @@ function hmacKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-/** Returns `base64url(JSON).base64url(HMAC-SHA256)`. Throws on an empty secret. */
+/** Returns `base64url(JSON).base64url(HMAC-SHA256)`. Throws on a missing or too-short secret. */
 export async function signSession(p: SessionPayload, secret: string): Promise<string> {
-  if (!secret) throw new Error("Session secret is not configured");
+  if (!isUsableSessionSecret(secret)) throw new Error("Session secret is not configured");
   const body = base64urlEncode(
     new TextEncoder().encode(JSON.stringify({ uploaderId: p.uploaderId, exp: p.exp })),
   );
@@ -29,13 +35,16 @@ export async function signSession(p: SessionPayload, secret: string): Promise<st
   return `${body}.${base64urlEncode(new Uint8Array(sig))}`;
 }
 
-/** Returns the payload, or null on a bad signature, malformed token, empty secret, or `exp <= nowSec`. */
+/**
+ * Returns the payload, or null on a bad signature, malformed token, missing or too-short secret,
+ * or `exp <= nowSec`.
+ */
 export async function verifySession(
   token: string,
   secret: string,
   nowSec: number,
 ): Promise<SessionPayload | null> {
-  if (!secret) return null;
+  if (!isUsableSessionSecret(secret)) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [body, sigText] = parts;

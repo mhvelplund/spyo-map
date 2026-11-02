@@ -13,7 +13,7 @@ const { verifySession } = await import('../src/auth/session.js');
 const { codeChallengeS256 } = await import('../src/auth/pkce.js');
 
 const EMAIL = 'malephex@gmail.com';
-const SECRET = 'test-secret-0123456789';
+const SECRET = 'test-session-secret-0123456789abcdef';
 const DB = { marker: 'db' };
 const env = {
   DB,
@@ -103,6 +103,16 @@ describe('GET /auth/login/google', () => {
     const b = await login();
     expect(a.state).not.toBe(b.state);
     expect(a.verifier).not.toBe(b.verifier);
+  });
+
+  it('fails closed with 500 when the session secret is shorter than 32 characters', async () => {
+    const res = await handleAuthRequest(
+      new Request('https://app.test/auth/login/google'),
+      { ...(env as object), SESSION_SECRET: 'x'.repeat(31) } as never,
+    );
+    expect(res.status).toBe(500);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   it('fails closed with 500 when the session secret is missing', async () => {
@@ -254,6 +264,37 @@ describe('GET /auth/callback/google', () => {
     );
     expect(res.headers.get('location')).toBe('/#/upload?denied=1');
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives error=1 and clears spyo_oauth when the allow-list lookup throws', async () => {
+    mockFindByEmail.mockRejectedValue(new Error('D1 unavailable'));
+    const { state, verifier } = await login();
+    const res = await handleAuthRequest(
+      callback(state, `spyo_oauth=${state}.${verifier}`),
+      env,
+      stubFetch({ email: EMAIL, email_verified: true }) as unknown as typeof fetch,
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/#/upload?error=1');
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.some((c) => c.startsWith('spyo_session='))).toBe(false);
+    expect(cookies.some((c) => c.startsWith('spyo_oauth=;') && c.includes('Max-Age=0'))).toBe(
+      true,
+    );
+    expect(await allText(res)).not.toContain(EMAIL);
+  });
+
+  it('fails closed when the session secret is shorter than 32 characters', async () => {
+    const { state, verifier } = await login();
+    const fetchFn = stubFetch({ email: EMAIL, email_verified: true });
+    const res = await handleAuthRequest(
+      callback(state, `spyo_oauth=${state}.${verifier}`),
+      { ...(env as object), SESSION_SECRET: 'x'.repeat(31) } as never,
+      fetchFn as unknown as typeof fetch,
+    );
+    expect(res.headers.get('location')).toBe('/#/upload?error=1');
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('spyo_session='))).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('fails closed when the session secret is missing', async () => {
