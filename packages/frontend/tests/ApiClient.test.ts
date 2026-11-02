@@ -6,6 +6,7 @@ const FIXTURE: ImageRecord = {
   id: 'img1',
   imageUrl: 'http://test/images/img1.jpg',
   thumbnailUrl: 'http://test/images/thumbnails/img1.jpg',
+  uploaderName: 'MH',
   latitude: 51.5,
   longitude: -0.12,
   timestamp: '2024-01-01T00:00:00.000Z',

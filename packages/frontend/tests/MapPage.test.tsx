@@ -8,6 +8,7 @@ describe('ImageModal - onImageNavigated prop', () => {
     id: 'test-1',
     imageUrl: 'https://example.com/image.jpg',
     thumbnailUrl: 'https://example.com/thumb.jpg',
+    uploaderName: 'MH',
     latitude: 40.7128,
     longitude: -74.006,
     timestamp: '2024-01-01T12:00:00Z',
