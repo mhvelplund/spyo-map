@@ -2,6 +2,9 @@ import type { D1Database } from "@cloudflare/workers-types";
 import type { ImageRecord } from "@spyo-map/shared";
 import { haversineKm } from "../utils.js";
 
+const IMAGE_SELECT =
+  "SELECT images.*, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id";
+
 export function rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord {
   const id = row.id as string;
   return {
@@ -29,7 +32,7 @@ export function rowToRecord(row: Record<string, unknown>, baseUrl: string): Imag
 }
 
 export async function queryAllImages(db: D1Database, baseUrl: string): Promise<ImageRecord[]> {
-  const { results } = await db.prepare("SELECT * FROM images").all<Record<string, unknown>>();
+  const { results } = await db.prepare(IMAGE_SELECT).all<Record<string, unknown>>();
   return results.map((row) => rowToRecord(row, baseUrl));
 }
 
@@ -39,7 +42,7 @@ export async function queryImageById(
   baseUrl: string,
 ): Promise<ImageRecord | null> {
   const { results } = await db
-    .prepare("SELECT * FROM images WHERE id = ?")
+    .prepare(`${IMAGE_SELECT} WHERE images.id = ?`)
     .bind(id)
     .all<Record<string, unknown>>();
   const row = results[0];
@@ -55,7 +58,7 @@ export async function queryNearbyImages(
   baseUrl: string,
 ): Promise<ImageRecord[]> {
   const { results } = await db
-    .prepare("SELECT * FROM images WHERE id != ?")
+    .prepare(`${IMAGE_SELECT} WHERE images.id != ?`)
     .bind(id)
     .all<Record<string, unknown>>();
 

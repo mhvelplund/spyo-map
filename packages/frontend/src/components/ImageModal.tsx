@@ -226,6 +226,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
               <span className="image-coordinates">
                 {image.latitude.toFixed(6)}, {image.longitude.toFixed(6)}
               </span>
+              {image.uploaderName && (
+                <span className="image-uploader">Uploaded by {image.uploaderName}</span>
+              )}
             </div>
             {hasNavigation && (
               <div className="navigation-info">
