@@ -141,6 +141,8 @@ const UploadPage: React.FC = () => {
   const onLogout = async () => {
     try {
       await client.logout();
+    } catch {
+      // Network failure: still drop local signed-in state.
     } finally {
       clearResults();
       setMe(null);
@@ -183,7 +185,7 @@ const UploadPage: React.FC = () => {
           Log out
         </button>
       </header>
-      <p className="upload-notice">Photos showing faces or licence plates will be deleted.</p>
+      <p className="upload-notice">Photos showing faces or licence plates will be removed.</p>
       <div className="upload-drop" onDragOver={onDragOver} onDrop={onDrop}>
         <p>Drop JPEG or TIFF photos with location data here, or choose files.</p>
         <input

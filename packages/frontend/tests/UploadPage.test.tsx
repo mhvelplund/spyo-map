@@ -74,7 +74,7 @@ describe('UploadPage', () => {
 
     renderAt('/upload');
     await screen.findByText('Ann');
-    expect(screen.getByText(/faces or licence plates/i)).toBeInTheDocument();
+    expect(screen.getByText('Photos showing faces or licence plates will be removed.')).toBeInTheDocument();
 
     fireEvent.drop(dropZone(), { dataTransfer: { files: [good, dup, nogps] } });
 
@@ -102,6 +102,15 @@ describe('UploadPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument()
     );
+  });
+
+  it('still signs out locally when logout rejects', async () => {
+    getMe.mockResolvedValue({ displayName: 'Ann' });
+    logout.mockRejectedValue(new Error('network'));
+    renderAt('/upload');
+    await screen.findByText('Ann');
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+    expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument();
   });
 
   it('revokes object URLs on unmount', async () => {
