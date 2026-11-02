@@ -89,6 +89,40 @@ describe('UploadPage', () => {
     expect(uploadFile).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps local rejection reasons when the hash check fails', async () => {
+    getMe.mockResolvedValue({ displayName: 'Ann' });
+    const good = new File(['1'], 'good.jpg');
+    const nogps = new File(['2'], 'nogps.jpg');
+    const png = new File(['3'], 'pic.png');
+    const huge = new File(['4'], 'huge.jpg');
+    const reasons = new Map<File, string>([
+      [nogps, 'No location data'],
+      [png, 'Not a JPEG or TIFF file.'],
+      [huge, 'File is larger than 50 MB.'],
+    ]);
+    inspectFile.mockImplementation(async (f) =>
+      f === good ? { ok: true, sha256: 'a'.repeat(64) } : { ok: false, reason: reasons.get(f) }
+    );
+    checkHashes.mockRejectedValue(new Error('500'));
+
+    renderAt('/upload');
+    await screen.findByText('Ann');
+    fireEvent.drop(dropZone(), { dataTransfer: { files: [good, nogps, png, huge] } });
+
+    const rej = await screen.findByRole('region', { name: 'Rejected' });
+    await waitFor(() => expect(within(rej).getAllByRole('listitem')).toHaveLength(4));
+    const reasonOf = (name: string) =>
+      within(rej)
+        .getAllByRole('listitem')
+        .find((li) => li.textContent?.includes(name))?.textContent;
+    expect(reasonOf('good.jpg')).toContain('Upload failed — please retry.');
+    expect(reasonOf('nogps.jpg')).toContain('No location data');
+    expect(reasonOf('nogps.jpg')).not.toContain('Upload failed');
+    expect(reasonOf('pic.png')).toContain('Not a JPEG or TIFF file.');
+    expect(reasonOf('huge.jpg')).toContain('File is larger than 50 MB.');
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
   it('returns to sign-in when the server says signed out', async () => {
     getMe.mockResolvedValue({ displayName: 'Ann' });
     inspectFile.mockResolvedValue({ ok: true, sha256: 'a'.repeat(64) });

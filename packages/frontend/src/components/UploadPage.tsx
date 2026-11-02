@@ -85,7 +85,18 @@ const UploadPage: React.FC = () => {
         inspection: await inspectFile(file),
       }));
       const hashes = inspected.flatMap((i) => (i.inspection.ok ? [i.inspection.sha256] : []));
-      const known = new Set(hashes.length ? await client.checkHashes(hashes) : []);
+      let known: Set<string>;
+      try {
+        known = new Set(hashes.length ? await client.checkHashes(hashes) : []);
+      } catch (e) {
+        if (isSignedOut(e)) throw e;
+        // Check failed: keep local rejection reasons; only would-be uploads fail.
+        const fallback = planBatch(inspected, new Set());
+        fallback.rejected.forEach((r) => addRejected(r.file, r.reason));
+        fallback.duplicates.forEach(addDup);
+        fallback.toUpload.forEach((u) => addRejected(u.file, UPLOAD_FAILED_COPY));
+        return;
+      }
       const plan = planBatch(inspected, known);
       plan.rejected.forEach((r) => addRejected(r.file, r.reason));
       plan.duplicates.forEach(addDup);
