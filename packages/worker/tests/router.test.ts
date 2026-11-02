@@ -12,7 +12,15 @@ jest.unstable_mockModule('../src/services/database.js', () => ({
   rowToRecord: jest.fn(),
 }));
 
+const mockFindUploaderById = jest.fn<(db: unknown, id: number) => Promise<unknown>>();
+
+jest.unstable_mockModule('../src/services/uploaders.js', () => ({
+  findActiveUploaderById: mockFindUploaderById,
+  findActiveUploaderByEmail: jest.fn(),
+}));
+
 const { handleApiRequest } = await import('../src/router.js');
+const { signSession } = await import('../src/auth/session.js');
 
 const FIXTURE: ImageRecord = {
   id: 'abc',
@@ -25,7 +33,13 @@ const FIXTURE: ImageRecord = {
 };
 
 const DB = { marker: 'db' };
-const env = { DB, ASSETS: {}, IMAGES_BASE_URL: 'https://img.test' } as never;
+const SECRET = 'test-secret-0123456789';
+const env = {
+  DB,
+  ASSETS: {},
+  IMAGES_BASE_URL: 'https://img.test',
+  SESSION_SECRET: SECRET,
+} as never;
 
 function get(path: string): Request {
   return new Request(`https://app.test${path}`);
@@ -137,5 +151,92 @@ describe('unknown API routes', () => {
       env,
     );
     expect(res.status).toBe(405);
+  });
+});
+
+describe('GET /api/me', () => {
+  const nowSec = () => Math.floor(Date.now() / 1000);
+
+  function me(cookie?: string): Request {
+    return new Request('https://app.test/api/me', cookie ? { headers: { cookie } } : {});
+  }
+
+  it('returns 401 without a cookie', async () => {
+    const res = await handleApiRequest(me(), env);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Not signed in' });
+    expect(mockFindUploaderById).not.toHaveBeenCalled();
+  });
+
+  it('returns the display name for a valid session of an active uploader', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
+    const res = await handleApiRequest(me(`spyo_session=${token}`), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ displayName: 'MH' });
+    expect(mockFindUploaderById).toHaveBeenCalledWith(DB, 1);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('returns 401 for a disabled uploader', async () => {
+    mockFindUploaderById.mockResolvedValue(null);
+    const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
+    const res = await handleApiRequest(me(`spyo_session=${token}`), env);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 for an expired or forged session', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    const expired = await signSession({ uploaderId: 1, exp: nowSec() - 1 }, SECRET);
+    expect((await handleApiRequest(me(`spyo_session=${expired}`), env)).status).toBe(401);
+    const forged = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, 'wrong-secret');
+    expect((await handleApiRequest(me(`spyo_session=${forged}`), env)).status).toBe(401);
+    expect(mockFindUploaderById).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the session secret is not configured', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
+    const res = await handleApiRequest(me(`spyo_session=${token}`), {
+      ...(env as object),
+      SESSION_SECRET: '',
+    } as never);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 405 for POST', async () => {
+    const res = await handleApiRequest(
+      new Request('https://app.test/api/me', { method: 'POST' }),
+      env,
+    );
+    expect(res.status).toBe(405);
+  });
+});
+
+describe('per-route method checks', () => {
+  it('returns 405 for POST /api/images', async () => {
+    const res = await handleApiRequest(
+      new Request('https://app.test/api/images', { method: 'POST' }),
+      env,
+    );
+    expect(res.status).toBe(405);
+    expect(mockQueryAll).not.toHaveBeenCalled();
+  });
+
+  it('returns 405 for DELETE /api/images/:id', async () => {
+    const res = await handleApiRequest(
+      new Request('https://app.test/api/images/abc', { method: 'DELETE' }),
+      env,
+    );
+    expect(res.status).toBe(405);
+    expect(mockQueryById).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for POST to an unknown route', async () => {
+    const res = await handleApiRequest(
+      new Request('https://app.test/api/nonsense', { method: 'POST' }),
+      env,
+    );
+    expect(res.status).toBe(404);
   });
 });

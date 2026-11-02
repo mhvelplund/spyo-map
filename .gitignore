@@ -33,6 +33,7 @@ images/
 images.db
 .env
 .env.github
+.dev.vars
 .worktrees/
 *.ignore.superpowers/
 .superpowers/
