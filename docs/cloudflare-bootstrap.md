@@ -129,16 +129,121 @@ curl https://spyo-map.isntall.net/api/health
 
 Expect `{"status":"ok"}`.
 
-## Uploading source photos
+## 9. Google OAuth client
 
-Photos are ingested from the `raw/` prefix of the bucket. Upload with rclone or the dashboard, then run the **Ingest
-Photos** workflow.
+Sign-in for the upload page uses Google. In the Google Cloud console: **APIs & Services → OAuth consent screen**, then
+**Credentials → Create credentials → OAuth client ID** (type **Web application**).
+
+- Consent screen privacy policy URL: `https://spyo-map.isntall.net/privacy.html`
+- Scope: `email` only
+- Authorized redirect URIs:
+  - `https://spyo-map.isntall.net/auth/callback/google`
+  - `http://localhost:8787/auth/callback/google`
+
+Record the client ID and client secret.
+
+## 10. Worker secrets
 
 ```bash
-npx wrangler r2 object put spyo-map/raw/IMG_1234.jpg --file ./IMG_1234.jpg
+openssl rand -base64 48 | npx wrangler secret put SESSION_SECRET --config packages/worker/wrangler.toml
+npx wrangler secret put GOOGLE_CLIENT_ID --config packages/worker/wrangler.toml
+npx wrangler secret put GOOGLE_CLIENT_SECRET --config packages/worker/wrangler.toml
+```
+
+`SESSION_SECRET` must be at least 32 characters; shorter (or empty) turns sign-in off. For local dev, create
+`packages/worker/.dev.vars` (git-ignored) with the same three names:
+
+```plaintext
+SESSION_SECRET=<output of openssl rand -base64 48>
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+## 11. Migration 0002 (uploaders and uploads)
+
+Apply the schema again after pulling the upload system; it is idempotent for already-applied migrations:
+
+```bash
+npx wrangler d1 migrations apply spyo-map --remote --config packages/worker/wrangler.toml
+```
+
+It adds the `uploaders` and `uploads` tables and `images.uploader_id`, and seeds uploader 1 (`MH`).
+
+## Managing uploaders
+
+Only people on the allow list can sign in and upload. Manage them with the admin CLI (`packages/admin`). Commands act
+on the local D1 by default; add `--remote` to act on production.
+
+```bash
+npm run uploaders -- list --remote
+npm run uploaders -- add <name> <email> --remote
+npm run uploaders -- add-email <id> <email> --remote
+npm run uploaders -- rename <id> <name> --remote
+npm run uploaders -- disable <id> --remote
+npm run uploaders -- enable <id> --remote
+npm run uploads -- forget <sha256> --remote
+npm run images -- remove <imageId> --remote
+```
+
+`images remove` deletes the D1 row and the R2 objects `images/<imageId>.jpg` and `images/thumbnails/<imageId>.jpg`.
+
+## Uploading photos
+
+Sign in at `https://spyo-map.isntall.net/#/upload` with an allow-listed Google account and drop JPEG or TIFF photos
+(up to 50 MB each). The Worker writes them to `raw/` in R2 with the uploader and a SHA-256 as object metadata; then run
+the **Ingest Photos** workflow to process them onto the map.
+
+The manual route stays as a fallback (rclone, the dashboard, or wrangler). Objects without metadata are attributed to
+uploader 1:
+
+```bash
+npx wrangler r2 object put spyo-map/raw/IMG_1234.jpg --file ./IMG_1234.jpg --remote
 ```
 
 The extractor deletes each `raw/` object once its metadata is committed to D1.
+
+### `failed/`
+
+The extractor moves an object from `raw/` to `failed/` (same file name) when it can never succeed as it stands:
+
+- its content does not match the declared `sha256`
+- it has no GPS EXIF data
+- it cannot be processed (corrupt or unreadable image)
+
+Transient errors (download or upload failures) leave the object in `raw/`, so the next run retries it.
+
+To retry a `failed/` object, move it back to `raw/` (download, then `wrangler r2 object put` to `raw/`, then delete the
+`failed/` copy) and re-run **Ingest Photos**. To give up on it, delete it from `failed/`. If it was a duplicate-blocked
+upload you want to accept again, also run `npm run uploads -- forget <sha256> --remote` so the upload page stops
+rejecting its hash.
+
+### Android (pending)
+
+The upload page refuses photos without GPS data and says so in a message. MH will test with Android Chrome before
+release; no result has been recorded yet.
+
+## Release reset
+
+Run once, on **PRODUCTION**, to start the public site from an empty gallery. **This wipes the D1 `images` and `uploads`
+tables and every R2 object under `raw/`, `failed/` and `images/`. It is irreversible.** Uploaders are kept.
+
+1. Clear the tables:
+
+   ```bash
+   npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml      --command "DELETE FROM images; DELETE FROM uploads;"
+   ```
+
+2. Delete everything under `raw/`, `failed/` and `images/` with `npx wrangler r2 object delete --remote
+   spyo-map/<key>` per object, or use the dashboard bulk delete (**R2 → spyo-map → Objects**).
+3. Re-upload through `/#/upload`.
+4. Run the **Ingest Photos** workflow.
+
+## Release checklist
+
+1. Do the manual Google sign-in check, local (`http://localhost:8787`) and production.
+2. Confirm that uploads from a browser over HTTP/2 reach the Worker with `Content-Length`. If they do not, every
+   upload gets 413.
+3. Run the E2E steps from the upload-system plan.
 
 ## Checking free-tier usage
 
