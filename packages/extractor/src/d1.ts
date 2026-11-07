@@ -3,9 +3,9 @@ import type { ExifData } from './processor.js';
 
 /**
  * Rows are written in chunks; D1's HTTP API caps bound parameters at 100 per
- * query (much lower than local SQLite's 999), so 6 x 16 = 96 stays under it.
+ * query (much lower than local SQLite's 999), so 5 x 18 = 90 stays under it.
  */
-const BATCH_SIZE = 6;
+const BATCH_SIZE = 5;
 
 const COLUMNS = [
   'id',
@@ -24,6 +24,8 @@ const COLUMNS = [
   'dest_bearing_ref',
   'dest_bearing',
   'h_positioning_error',
+  'uploader_id',
+  'content_hash',
 ] as const;
 
 export interface D1Client {
@@ -34,6 +36,8 @@ export interface ImageInsert {
   id: string;
   path: string;
   exif: ExifData;
+  uploaderId: number;
+  contentHash: string | null;
 }
 
 interface D1Response {
@@ -99,6 +103,8 @@ function toParams(row: ImageInsert): unknown[] {
     exif.destBearingRef ?? null,
     exif.destBearing ?? null,
     exif.hPositioningError ?? null,
+    row.uploaderId,
+    row.contentHash,
   ];
 }
 

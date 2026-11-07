@@ -141,7 +141,13 @@ describe('fetchExistingIds', () => {
 });
 
 describe('upsertImages', () => {
-  const row = (id: string): ImageInsert => ({ id, path: `${id}.jpg`, exif: EXIF });
+  const row = (id: string): ImageInsert => ({
+    id,
+    path: `${id}.jpg`,
+    exif: EXIF,
+    uploaderId: 1,
+    contentHash: null,
+  });
 
   it('issues no query for an empty batch', async () => {
     const { client, calls } = fakeClient();
@@ -157,12 +163,19 @@ describe('upsertImages', () => {
     expect(calls[0]!.sql).toMatch(/ON CONFLICT\(id\) DO UPDATE/);
   });
 
-  it('binds sixteen parameters per row, id first', async () => {
+  it('binds eighteen parameters per row, id first', async () => {
     const { client, calls } = fakeClient();
     await upsertImages(client, [row('a'), row('b')]);
-    expect(calls[0]!.params).toHaveLength(32);
+    expect(calls[0]!.params).toHaveLength(36);
     expect(calls[0]!.params[0]).toBe('a');
-    expect(calls[0]!.params[16]).toBe('b');
+    expect(calls[0]!.params[18]).toBe('b');
+  });
+
+  it('includes uploader_id and content_hash columns', async () => {
+    const { client, calls } = fakeClient();
+    await upsertImages(client, [{ ...row('a'), uploaderId: 7, contentHash: 'abc' }]);
+    expect(calls[0]!.sql).toContain('uploader_id, content_hash');
+    expect(calls[0]!.params.slice(-2)).toEqual([7, 'abc']);
   });
 
   it('maps absent EXIF fields to null rather than undefined', async () => {
@@ -173,15 +186,15 @@ describe('upsertImages', () => {
     expect(calls[0]!.params.every((p) => p !== undefined)).toBe(true);
   });
 
-  it('splits batches larger than six rows', async () => {
+  it('splits batches larger than five rows', async () => {
     const { client, calls } = fakeClient();
     await upsertImages(
       client,
-      Array.from({ length: 13 }, (_, i) => row(`id${i}`)),
+      Array.from({ length: 11 }, (_, i) => row(`id${i}`)),
     );
     expect(calls).toHaveLength(3);
-    expect(calls[0]!.params).toHaveLength(6 * 16);
-    expect(calls[2]!.params).toHaveLength(1 * 16);
+    expect(calls[0]!.params).toHaveLength(5 * 18);
+    expect(calls[2]!.params).toHaveLength(1 * 18);
   });
 
   it('never binds more than one hundred parameters in a single query', async () => {

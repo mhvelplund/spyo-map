@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -32,11 +33,11 @@ export function createS3Client(config: Config): S3Client {
   });
 }
 
-export async function getObject(
+export async function getObjectWithMetadata(
   s3: S3Client,
   bucket: string,
   key: string,
-): Promise<Buffer | null> {
+): Promise<{ body: Buffer; metadata: Record<string, string> } | null> {
   try {
     const response = await s3.send(
       new GetObjectCommand({ Bucket: bucket, Key: key }),
@@ -48,11 +49,37 @@ export async function getObject(
         Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array),
       );
     }
-    return Buffer.concat(chunks);
+    return { body: Buffer.concat(chunks), metadata: response.Metadata ?? {} };
   } catch (err) {
     if (err instanceof NoSuchKey) return null;
     throw err;
   }
+}
+
+export async function getObject(
+  s3: S3Client,
+  bucket: string,
+  key: string,
+): Promise<Buffer | null> {
+  const result = await getObjectWithMetadata(s3, bucket, key);
+  return result ? result.body : null;
+}
+
+export async function moveObject(
+  s3: S3Client,
+  bucket: string,
+  fromKey: string,
+  toKey: string,
+): Promise<void> {
+  const encodedFrom = fromKey.split("/").map(encodeURIComponent).join("/");
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      Key: toKey,
+      CopySource: `${bucket}/${encodedFrom}`,
+    }),
+  );
+  await deleteObject(s3, bucket, fromKey);
 }
 
 export async function putObject(
