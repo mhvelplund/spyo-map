@@ -28,7 +28,7 @@ This repo uses Nx to orchestrate tasks across packages (task graph + local cachi
 - `npx nx run @spyo-map/worker:test` / `@spyo-map/extractor:test` / `@spyo-map/frontend:test` — single package.
 - `npx nx graph` — view the project dependency graph.
 
-See `docs/runbooks/cloudflare-bootstrap.md` for one-time setup and for running the extractor.
+See `docs/cloudflare-bootstrap.md` for one-time setup and for running the extractor.
 
 Test framework is Jest 29 + ts-jest in ESM mode (`node --experimental-vm-modules`). Tests live in
 `packages/<pkg>/tests/**/*.test.ts` — colocated per package, not in a shared test folder.
@@ -39,7 +39,7 @@ Test framework is Jest 29 + ts-jest in ESM mode (`node --experimental-vm-modules
 
 ## Architecture
 
-npm workspaces monorepo, four runtime packages plus a smoke-test package:
+npm workspaces monorepo, five runtime packages plus a smoke-test package:
 
 - **`packages/shared`** — Shared TypeScript types (`ImageRecord`, `GeoLocation`, `AppState`, component prop types). No
   build step (`main`/`exports` point straight at `src/types.ts`).
@@ -53,6 +53,8 @@ npm workspaces monorepo, four runtime packages plus a smoke-test package:
 - **`packages/extractor`** — One-shot CLI ingestion job, run by GitHub Actions. Reads photos from `raw/` in R2 or a
   local folder (`LOCAL_SOURCE_PATH`), extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads
   to `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
+- **`packages/admin`** — Admin CLI (`npm run uploaders|uploads|images`, add `--remote` for production) that manages the
+  upload allow-list and removes images via wrangler D1/R2 commands.
 - **`packages/smoke-test`** — standalone Jest package, no source, just tests. Runs against a deployed `SMOKE_BASE_URL`
   and skips when that is unset.
 
@@ -60,6 +62,7 @@ R2 bucket layout:
 ```
 spyo-map/
 ├── raw/                 ← upload source photos here (private; deleted after ingest)
+├── failed/              ← objects the extractor rejected (private; retry or delete)
 ├── images/              ← processed full-size (public via spyo-img.isntall.net)
 │   └── thumbnails/      ← thumbnails (public)
 ```
@@ -68,6 +71,7 @@ spyo-map/
 
 - Routing is hash-based (`/#/image/:imageId`) for static-hosting compatibility — preserved by `generateImageUrl()` and
   `SocialShare`.
+- `/#/upload` is the sign-in-gated upload page (Google sign-in, writes to `raw/` via the Worker).
 - `MainMapView` loads all images via `apiClient.getAllImages()` and passes them to `MapView`.
 - `MapView` (`src/components/MapView.tsx`) owns Leaflet integration: circular thumbnail markers via `DivIcon`,
   clustering via `leaflet.markercluster`, reports selection back to the router layer.
@@ -87,7 +91,7 @@ spyo-map/
 ### Infra
 
 There is no Terraform. Cloudflare resources are declared in `packages/worker/wrangler.toml` and created once by CLI —
-see `docs/runbooks/cloudflare-bootstrap.md`. `mise.toml` pins `node`.
+see `docs/cloudflare-bootstrap.md`. `mise.toml` pins `node`.
 
 ## Planning
 
