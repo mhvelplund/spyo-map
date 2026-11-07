@@ -21,7 +21,7 @@ const plugin = {
   hasSignedInBefore: jest.fn<() => Promise<{ value: boolean }>>(),
   pickPhotos: jest.fn<() => Promise<{ photos: unknown[] }>>(),
   getSharedPhotos: jest.fn<() => Promise<{ photos: unknown[] }>>(),
-  addListener: jest.fn<(e: string, cb: () => void) => Promise<{ remove: () => Promise<void> }>>(),
+  addListener: jest.fn<(e: string, cb: () => void) => unknown>(),
 };
 
 function install(withPlugin = true, native = true) {
@@ -126,6 +126,14 @@ describe('photos', () => {
 });
 
 describe('onNativeShare', () => {
+  it('works with the synchronous handle window.Capacitor.Plugins returns', () => {
+    const remove = jest.fn<() => Promise<void>>().mockResolvedValue();
+    plugin.addListener.mockReturnValue({ remove });
+    const off = onNativeShare(jest.fn());
+    expect(() => off()).not.toThrow();
+    return Promise.resolve().then(() => expect(remove).toHaveBeenCalled());
+  });
+
   it('subscribes to photosShared and the unsubscribe calls handle.remove()', async () => {
     const remove = jest.fn<() => Promise<void>>().mockResolvedValue();
     plugin.addListener.mockResolvedValue({ remove });
