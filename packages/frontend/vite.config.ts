@@ -58,7 +58,8 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      '/api': 'http://localhost:8787'
+      '/api': 'http://localhost:8787',
+      '/auth': 'http://localhost:8787'
     }
   },
 

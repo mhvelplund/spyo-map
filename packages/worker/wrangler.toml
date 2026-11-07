@@ -12,9 +12,12 @@ IMAGES_BASE_URL = "https://spyo-img.isntall.net"
 directory = "../frontend/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-# Without this, the asset router answers /api/* with index.html (SPA fallback)
-# before the Worker ever runs.
-run_worker_first = ["/api/*"]
+# Without this, the asset router answers /api/* and /auth/* with index.html
+# (SPA fallback) before the Worker ever runs.
+run_worker_first = ["/api/*", "/auth/*"]
+
+# Secrets (not vars): SESSION_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
+# Set with `wrangler secret put <NAME>`; for `wrangler dev` put them in .dev.vars.
 
 [[d1_databases]]
 binding = "DB"
