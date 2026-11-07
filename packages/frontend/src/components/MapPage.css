@@ -1,7 +1,8 @@
 .main-map-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* Fill .app exactly; 100vh is taller than .app's 100dvh on mobile and would scroll. */
+  height: 100%;
   width: 100%;
 }
 

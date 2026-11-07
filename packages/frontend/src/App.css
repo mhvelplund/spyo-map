@@ -1,8 +1,13 @@
 .app {
   width: 100vw;
   height: 100vh;
+  /* Mobile: 100vh includes the area behind the browser toolbar; dvh does not. */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* html/body are overflow:hidden for the full-screen map; pages taller than the
+     viewport (e.g. /#/upload) scroll here instead. The map fits exactly, so it never scrolls. */
+  overflow-y: auto;
 }
 
 .main-view {
