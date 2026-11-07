@@ -13,6 +13,10 @@ export interface PickedPhoto {
   webPath: string;
 }
 
+export interface ListenerHandle {
+  remove(): Promise<void> | void;
+}
+
 export interface SpyoNativePlugin {
   /** Rejects with code 'CANCELED' | 'NO_CREDENTIAL' | 'FAILED'. */
   signIn(options: { silent: boolean }): Promise<{ idToken: string }>;
@@ -22,7 +26,8 @@ export interface SpyoNativePlugin {
   pickPhotos(): Promise<{ photos: PickedPhoto[] }>;
   /** Drains the pending share queue. */
   getSharedPhotos(): Promise<{ photos: PickedPhoto[] }>;
-  addListener(event: 'photosShared', cb: () => void): Promise<{ remove(): Promise<void> }>;
+  /** Synchronous through window.Capacitor.Plugins (what this page uses); a Promise via @capacitor/core. */
+  addListener(event: 'photosShared', cb: () => void): ListenerHandle | Promise<ListenerHandle>;
 }
 
 interface CapacitorGlobal {
@@ -100,6 +105,6 @@ export async function nativeSharedPhotos(): Promise<NativeFiles> {
 export function onNativeShare(cb: () => void): () => void {
   const handle = requirePlugin().addListener('photosShared', cb);
   return () => {
-    void handle.then((h) => h.remove());
+    void Promise.resolve(handle).then((h) => h.remove());
   };
 }
