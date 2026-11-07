@@ -10,7 +10,10 @@
     "dev": "nx run @spyo-map/frontend:dev",
     "build": "nx run @spyo-map/frontend:build",
     "lint": "eslint .",
-    "test": "nx run-many -t test"
+    "test": "nx run-many -t test",
+    "uploaders": "tsx packages/admin/src/cli.ts uploaders",
+    "uploads": "tsx packages/admin/src/cli.ts uploads",
+    "images": "tsx packages/admin/src/cli.ts images"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

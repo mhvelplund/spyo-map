@@ -11,6 +11,7 @@ export function rowToRecord(row: Record<string, unknown>, baseUrl: string): Imag
     latitude: row.latitude as number,
     longitude: row.longitude as number,
     timestamp: (row.timestamp as string | null) ?? "",
+    uploaderName: (row.uploader_name as string | null) ?? "",
     ...(row.latitude_ref != null ? { latitudeRef: row.latitude_ref as string } : {}),
     ...(row.longitude_ref != null ? { longitudeRef: row.longitude_ref as string } : {}),
     ...(row.altitude_ref != null ? { altitudeRef: String(row.altitude_ref) } : {}),

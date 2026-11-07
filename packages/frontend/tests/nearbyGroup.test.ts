@@ -7,6 +7,7 @@ function makeImage(id: string, lat: number, lng: number): ImageRecord {
     id,
     imageUrl: `http://test/images/${id}.jpg`,
     thumbnailUrl: `http://test/images/thumbnails/${id}.jpg`,
+    uploaderName: 'MH',
     latitude: lat,
     longitude: lng,
     timestamp: '2024-01-01T00:00:00.000Z',

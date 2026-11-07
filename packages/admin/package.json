@@ -1,0 +1,22 @@
+{
+  "name": "@spyo-map/admin",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules ../../node_modules/.bin/jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@spyo-map/shared": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.12",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.3",
+    "wrangler": "^4.118.0"
+  }
+}

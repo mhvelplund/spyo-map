@@ -21,6 +21,7 @@ export interface ImageRecord {
   destBearingRef?: string;
   destBearing?: number;
   hPositioningError?: number;
+  uploaderName: string;
 }
 
 export interface AppState {
@@ -50,3 +51,5 @@ export interface SocialShareProps {
   imageUrl: string;
   imageTitle?: string;
 }
+
+export * from './upload.js';
