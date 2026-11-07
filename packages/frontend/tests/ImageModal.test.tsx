@@ -57,6 +57,19 @@ describe('ImageModal', () => {
     expect(img).toHaveAttribute('src', mockImage.imageUrl);
   });
 
+  it('should show the uploader name', () => {
+    render(
+      <ImageModal
+        image={mockImage}
+        nearbyImages={[mockImage]}
+        isOpen={true}
+        onClose={jest.fn()}
+        onNavigate={jest.fn()}
+      />
+    );
+    expect(screen.getByText('Uploaded by MH')).toBeInTheDocument();
+  });
+
   it('should display metadata', () => {
     render(
       <ImageModal
