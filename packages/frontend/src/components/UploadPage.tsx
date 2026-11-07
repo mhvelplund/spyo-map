@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
 import { useSearchParams } from 'react-router';
-import type { MeResponse } from '@spyo-map/shared';
+import { REJECT_COPY, type MeResponse } from '@spyo-map/shared';
 import { UploadClient, UPLOAD_FAILED_COPY } from '../services/UploadClient.js';
 import { inspectFile } from '../utils/fileInspection.js';
+import {
+  isNativeApp,
+  nativeHasSignedInBefore,
+  nativePickPhotos,
+  nativeSharedPhotos,
+  nativeSignIn,
+  nativeSignOut,
+  onNativeShare,
+  type NativeFiles,
+} from '../utils/native.js';
 import { runWithConcurrency } from '../utils/pool.js';
 import { planBatch } from '../utils/uploadBatch.js';
 import './UploadPage.css';
@@ -41,19 +51,37 @@ const UploadPage: React.FC = () => {
   const [duplicates, setDuplicates] = useState<Dup[]>([]);
   const [rejected, setRejected] = useState<Rejected[]>([]);
   const [busy, setBusy] = useState(false);
+  const [inApp] = useState(isNativeApp);
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<'denied' | 'error' | null>(null);
   const urls = useRef<string[]>([]);
   const nextId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const silentSignIn = async () => {
+      try {
+        if (!(await nativeHasSignedInBefore())) return;
+        const token = await nativeSignIn(true);
+        if (!token || cancelled) return;
+        const result = await client.signInWithIdToken(token);
+        if (!cancelled && result !== 'denied') setMe(result);
+      } catch {
+        // Silent sign-in is best effort; the Sign in button stays available.
+      }
+    };
     client
       .getMe()
-      .then((m) => !cancelled && setMe(m))
+      .then((m) => {
+        if (cancelled) return;
+        setMe(m);
+        if (m === null && inApp) void silentSignIn();
+      })
       .catch(() => !cancelled && setMe(null));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [inApp]);
 
   useEffect(
     () => () => {
@@ -139,6 +167,55 @@ const UploadPage: React.FC = () => {
     }
   }, []);
 
+  const handleNative = useCallback(
+    async ({ files, failed }: NativeFiles) => {
+      failed.forEach((name) =>
+        setRejected((r) => [...r, { id: nextId.current++, file: new File([], name), reason: UPLOAD_FAILED_COPY }])
+      );
+      await handleFiles(files);
+    },
+    [handleFiles]
+  );
+
+  const signedIn = me !== null && me !== undefined;
+  useEffect(() => {
+    if (!inApp || !signedIn) return;
+    const drain = () => {
+      nativeSharedPhotos()
+        .then(handleNative)
+        .catch(() => {});
+    };
+    drain();
+    return onNativeShare(drain);
+  }, [inApp, signedIn, handleNative]);
+
+  const onNativeSignIn = async () => {
+    setSigningIn(true);
+    setSignInError(null);
+    try {
+      const token = await nativeSignIn(false);
+      if (!token) return;
+      const result = await client.signInWithIdToken(token);
+      if (result === 'denied') setSignInError('denied');
+      else setMe(result);
+    } catch {
+      setSignInError('error');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const onNativePick = async () => {
+    try {
+      await handleNative(await nativePickPhotos());
+    } catch {
+      // Picker failed to open; nothing was selected.
+    }
+  };
+
+  const shownReason = (reason: string) =>
+    inApp && reason === REJECT_COPY.noGps ? REJECT_COPY.noGpsInApp : reason;
+
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     void handleFiles(e.dataTransfer.files);
@@ -151,6 +228,7 @@ const UploadPage: React.FC = () => {
 
   const onLogout = async () => {
     try {
+      if (inApp) await nativeSignOut().catch(() => {});
       await client.logout();
     } catch {
       // Network failure: still drop local signed-in state.
@@ -172,11 +250,26 @@ const UploadPage: React.FC = () => {
     return (
       <div className="upload-page">
         <h1>Upload</h1>
-        {params.get('denied') === '1' && <p role="alert">This account is not allowed to upload.</p>}
-        {params.get('error') === '1' && <p role="alert">Sign-in failed. Please try again.</p>}
-        <a className="upload-button" href="/auth/login/google">
-          Sign in with Google
-        </a>
+        {(params.get('denied') === '1' || signInError === 'denied') && (
+          <p role="alert">This account is not allowed to upload.</p>
+        )}
+        {(params.get('error') === '1' || signInError === 'error') && (
+          <p role="alert">Sign-in failed. Please try again.</p>
+        )}
+        {inApp ? (
+          <button
+            type="button"
+            className="upload-button"
+            onClick={() => void onNativeSignIn()}
+            disabled={signingIn}
+          >
+            Sign in with Google
+          </button>
+        ) : (
+          <a className="upload-button" href="/auth/login/google">
+            Sign in with Google
+          </a>
+        )}
         <p>
           <a href="/privacy.html">Privacy</a>
         </p>
@@ -197,17 +290,26 @@ const UploadPage: React.FC = () => {
         </button>
       </header>
       <p className="upload-notice">Photos showing faces or licence plates will be removed.</p>
-      <div className="upload-drop" onDragOver={onDragOver} onDrop={onDrop}>
-        <p>Drop JPEG or TIFF photos with location data here, or choose files.</p>
-        <input
-          type="file"
-          multiple
-          accept="image/jpeg,image/tiff"
-          aria-label="Choose photos"
-          onChange={onPick}
-          disabled={busy}
-        />
-      </div>
+      {inApp ? (
+        <div className="upload-drop">
+          <p>Choose JPEG or TIFF photos with location data.</p>
+          <button type="button" className="upload-button" onClick={() => void onNativePick()} disabled={busy}>
+            Choose photos
+          </button>
+        </div>
+      ) : (
+        <div className="upload-drop" onDragOver={onDragOver} onDrop={onDrop}>
+          <p>Drop JPEG or TIFF photos with location data here, or choose files.</p>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg,image/tiff"
+            aria-label="Choose photos"
+            onChange={onPick}
+            disabled={busy}
+          />
+        </div>
+      )}
 
       {rows.length > 0 && (
         <ul className="upload-progress" aria-label="Progress">
@@ -254,7 +356,7 @@ const UploadPage: React.FC = () => {
           <ul>
             {rejected.map((r) => (
               <li key={r.id}>
-                {r.file.name} — {r.reason}
+                {r.file.name} — {shownReason(r.reason)}
               </li>
             ))}
           </ul>
