@@ -1,5 +1,5 @@
 import { MAX_CHECK_HASHES, detectImageType } from '@spyo-map/shared';
-import type { MeResponse, UploadCheckResponse, UploadOutcome } from '@spyo-map/shared';
+import type { IdTokenSignInRequest, MeResponse, UploadCheckResponse, UploadOutcome } from '@spyo-map/shared';
 import { API_BASE_URL } from '../config.js';
 
 export class SignedOutError extends Error {
@@ -64,6 +64,25 @@ export class UploadClient {
       return { status: 'rejected', reason: typeof reason === 'string' ? reason : UPLOAD_FAILED_COPY };
     }
     return { status: 'rejected', reason: UPLOAD_FAILED_COPY };
+  }
+
+  /** Trades a Google ID token from the mobile app's native sign-in for a session cookie. */
+  async signInWithIdToken(idToken: string): Promise<MeResponse | 'denied'> {
+    const res = await fetch(`${API_BASE_URL}/auth/google/idtoken`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken } satisfies IdTokenSignInRequest),
+    });
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // fall through to the status checks
+    }
+    if (res.status === 403 && (body as { error?: unknown } | null)?.error === 'Not allowed') return 'denied';
+    if (res.status !== 200) throw new Error(`Sign-in failed: ${res.status}`);
+    return body as MeResponse;
   }
 
   async logout(): Promise<void> {

@@ -47,3 +47,34 @@ describe('UploadClient.uploadFile', () => {
     expect(sentHeaders()['X-Original-Filename']).toBe(encodeURIComponent('Nørrebro æble.jpg'));
   });
 });
+
+describe('UploadClient.signInWithIdToken', () => {
+  const respond = (status: number, body: unknown) =>
+    fetchSpy.mockResolvedValue({ status, ok: status >= 200 && status < 300, json: () => Promise.resolve(body) } as unknown as Response);
+
+  it('POSTs {idToken} same-origin to /auth/google/idtoken and returns the MeResponse on 200', async () => {
+    respond(200, { displayName: 'Ada' });
+    expect(await new UploadClient().signInWithIdToken('tok')).toEqual({ displayName: 'Ada' });
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/auth/google/idtoken');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(init.body as string)).toEqual({ idToken: 'tok' });
+  });
+
+  it("returns 'denied' on 403 Not allowed", async () => {
+    respond(403, { error: 'Not allowed' });
+    expect(await new UploadClient().signInWithIdToken('tok')).toBe('denied');
+  });
+
+  it('throws on 401', async () => {
+    respond(401, { error: 'Invalid token' });
+    await expect(new UploadClient().signInWithIdToken('tok')).rejects.toThrow();
+  });
+
+  it('throws on 403 Forbidden (cross-origin), which is not a denial', async () => {
+    respond(403, { error: 'Forbidden' });
+    await expect(new UploadClient().signInWithIdToken('tok')).rejects.toThrow();
+  });
+});
