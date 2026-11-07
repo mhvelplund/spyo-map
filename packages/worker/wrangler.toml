@@ -24,3 +24,7 @@ binding = "DB"
 database_name = "spyo-map"
 database_id = "d2237940-aa4a-4574-a1b8-6a084270cc8e"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "spyo-map"

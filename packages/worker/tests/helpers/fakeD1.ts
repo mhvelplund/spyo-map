@@ -21,6 +21,7 @@ export function fakeD1(rows: Array<Record<string, unknown>>): {
           return stmt;
         },
         all: async () => ({ results: rows }),
+        run: async () => ({ success: true }),
         first: async () => rows[0] ?? null,
       };
       return stmt;

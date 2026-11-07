@@ -1,5 +1,6 @@
 import type { MeResponse } from "@spyo-map/shared";
 import type { Env } from "./env.js";
+import { handleUploadCheck, handleUploadPut } from "./uploads/handlers.js";
 import { currentUploader } from "./auth/currentUploader.js";
 import {
   queryAllImages,
@@ -38,6 +39,22 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
 
   if (segments.length === 2 && resource === "me") {
     return isGet ? handleMe(request, env) : methodNotAllowed();
+  }
+
+  if (resource === "uploads" && segments.length === 3 && rawId !== undefined) {
+    if (rawId === "check") {
+      return request.method === "POST" ? handleUploadCheck(request, env) : methodNotAllowed();
+    }
+    if (request.method !== "PUT") return methodNotAllowed();
+    // A malformed escape can never be a valid hash; pass it through so the handler's
+    // origin/session checks still run first and it then answers 400 bad-hash.
+    let hash = rawId;
+    try {
+      hash = decodeURIComponent(rawId);
+    } catch {
+      // keep rawId
+    }
+    return handleUploadPut(request, env, hash);
   }
 
   if (resource !== "images") return notFound();
