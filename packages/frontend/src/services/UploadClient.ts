@@ -1,4 +1,4 @@
-import { MAX_CHECK_HASHES } from '@spyo-map/shared';
+import { MAX_CHECK_HASHES, detectImageType } from '@spyo-map/shared';
 import type { MeResponse, UploadCheckResponse, UploadOutcome } from '@spyo-map/shared';
 import { API_BASE_URL } from '../config.js';
 
@@ -36,10 +36,16 @@ export class UploadClient {
   }
 
   async uploadFile(file: File, sha256: string): Promise<UploadOutcome> {
+    // The Worker picks the R2 key extension from Content-Type and verifies it against the stored bytes,
+    // so declare the type from the magic bytes rather than trusting file.type (often empty on Android).
+    const type = detectImageType(new Uint8Array(await file.slice(0, 4).arrayBuffer()));
     const res = await fetch(`${API_BASE_URL}/api/uploads/${sha256}`, {
       method: 'PUT',
       credentials: 'same-origin',
-      headers: { 'X-Original-Filename': encodeURIComponent(file.name) },
+      headers: {
+        'Content-Type': type === 'tif' ? 'image/tiff' : 'image/jpeg',
+        'X-Original-Filename': encodeURIComponent(file.name),
+      },
       body: file,
     });
     if (res.status === 401) throw new SignedOutError();
