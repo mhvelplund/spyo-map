@@ -4,6 +4,7 @@ import {
   MAX_CHECK_HASHES,
   MAX_UPLOAD_BYTES,
   REJECT_COPY,
+  type ImageType,
   type UploadCheckResponse,
   type UploadOutcome,
 } from "@spyo-map/shared";
@@ -55,61 +56,19 @@ function decodeFilename(header: string, fallback: string): string {
   }
 }
 
+/** The client declares the type (from the file's magic bytes); the server verifies it after storing. */
+const CONTENT_TYPE_EXT: Record<string, ImageType> = { "image/jpeg": "jpg", "image/tiff": "tif" };
+
+function declaredType(request: Request): ImageType | null {
+  const ct = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  return CONTENT_TYPE_EXT[ct] ?? null;
+}
+
 /**
- * Reads just enough of the body to sniff the magic bytes, then returns a stream that replays those bytes and
- * forwards the rest. Never buffers the whole body (no arrayBuffer(), no tee()).
+ * Hands request.body to R2 untouched. A native request stream with a Content-Length goes to R2 without passing
+ * through JavaScript, which keeps large uploads under the free plan's 10 ms CPU limit. Wrapping the body in a JS
+ * stream (to sniff it inline) cost ~10 ms per photo and got requests killed with exceededCpu.
  */
-async function sniffBody(
-  body: ReadableStream<Uint8Array>,
-): Promise<{ ext: ReturnType<typeof detectImageType>; stream: ReadableStream<Uint8Array> | null }> {
-  const reader = body.getReader();
-  const head: Uint8Array[] = [];
-  let headLength = 0;
-  while (headLength < 4) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    head.push(value);
-    headLength += value.byteLength;
-  }
-  const magic = new Uint8Array(Math.min(4, headLength));
-  let offset = 0;
-  for (const chunk of head) {
-    if (offset === magic.length) break;
-    const n = Math.min(chunk.byteLength, magic.length - offset);
-    magic.set(chunk.subarray(0, n), offset);
-    offset += n;
-  }
-  const ext = detectImageType(magic);
-  if (!ext) {
-    await reader.cancel().catch(() => {});
-    return { ext, stream: null };
-  }
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of head) controller.enqueue(chunk);
-    },
-    async pull(controller) {
-      const { done, value } = await reader.read();
-      if (done) controller.close();
-      else controller.enqueue(value);
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
-  return { ext, stream };
-}
-
-/** R2 needs a known length in the Workers runtime; FixedLengthStream provides it. Absent in tests. */
-function withKnownLength(stream: ReadableStream<Uint8Array>, length: number): ReadableStream<Uint8Array> {
-  const Fixed = (globalThis as { FixedLengthStream?: new (n: number) => TransformStream<Uint8Array, Uint8Array> })
-    .FixedLengthStream;
-  if (!Fixed) return stream;
-  const fixed = new Fixed(length);
-  stream.pipeTo(fixed.writable).catch(() => {});
-  return fixed.readable;
-}
-
 export async function handleUploadPut(
   request: Request,
   env: Env,
@@ -130,16 +89,15 @@ export async function handleUploadPut(
   const [known] = await findKnownHashes(env.DB, [sha256]);
   if (known) return json({ status: "duplicate" } satisfies UploadOutcome);
 
-  if (!request.body) return rejected(REJECT_COPY.wrongType, 400);
-  const { ext, stream } = await sniffBody(request.body);
-  if (!ext || !stream) return rejected(REJECT_COPY.wrongType, 400);
+  const ext = declaredType(request);
+  if (!request.body || length < 4 || !ext) return rejected(REJECT_COPY.wrongType, 400);
 
   const rawKey = `raw/${sha256}.${ext}`;
   const fallbackName = `${sha256}.${ext}`;
   const header = request.headers.get("x-original-filename");
   const sentName = header && header.length <= MAX_FILENAME_HEADER ? header : null;
   try {
-    await env.BUCKET.put(rawKey, withKnownLength(stream, length), {
+    await env.BUCKET.put(rawKey, request.body, {
       httpMetadata: { contentType: ext === "jpg" ? "image/jpeg" : "image/tiff" },
       customMetadata: {
         "uploader-id": String(uploader.id),
@@ -149,6 +107,20 @@ export async function handleUploadPut(
     });
   } catch {
     return json({ error: "Upload failed" }, 500);
+  }
+
+  // Verify the declared type against the stored bytes; remove the object if it lied.
+  let head: Uint8Array | null;
+  try {
+    const obj = await env.BUCKET.get(rawKey, { range: { offset: 0, length: 4 } });
+    head = obj ? new Uint8Array(await obj.arrayBuffer()) : null;
+  } catch {
+    await env.BUCKET.delete(rawKey).catch(() => {});
+    return json({ error: "Upload failed" }, 500);
+  }
+  if (!head || detectImageType(head) !== ext) {
+    await env.BUCKET.delete(rawKey).catch(() => {});
+    return rejected(REJECT_COPY.wrongType, 400);
   }
 
   try {

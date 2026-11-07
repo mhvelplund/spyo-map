@@ -13,38 +13,42 @@ const { handleApiRequest } = await import('../src/router.js');
 const SHA = 'a'.repeat(64);
 const ORIGIN = 'https://app.test';
 
+/** In-memory R2: put drains the body, get supports a byte range, delete removes. */
 function makeEnv(rows: Array<Record<string, unknown>> = []) {
   const { db, calls } = fakeD1(rows);
-  const put = jest.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({}));
-  return { env: { DB: db, BUCKET: { put } } as never, calls, put };
+  const objects = new Map<string, Uint8Array>();
+  const put = jest.fn<(...a: unknown[]) => Promise<unknown>>(async (key, body) => {
+    objects.set(key as string, new Uint8Array(await readAll(body)));
+    return {};
+  });
+  const get = jest.fn<(...a: unknown[]) => Promise<unknown>>(async (key, opts) => {
+    const bytes = objects.get(key as string);
+    if (!bytes) return null;
+    const range = (opts as { range?: { offset: number; length: number } } | undefined)?.range;
+    const slice = range ? bytes.slice(range.offset, range.offset + range.length) : bytes;
+    return { arrayBuffer: async () => slice.buffer };
+  });
+  const del = jest.fn<(...a: unknown[]) => Promise<void>>(async (key) => {
+    objects.delete(key as string);
+  });
+  return { env: { DB: db, BUCKET: { put, get, delete: del } } as never, calls, put, get, del, objects };
 }
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2]);
+const TIFF = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 1, 2]);
 
 function putReq(body: Uint8Array, headers: Record<string, string> = {}): Request {
   return new Request(`${ORIGIN}/api/uploads/${SHA}`, {
     method: 'PUT',
     body,
-    headers: { origin: ORIGIN, 'content-length': String(body.length), ...headers },
-  });
-}
-
-function streamReq(chunks: Uint8Array[], headers: Record<string, string> = {}): Request {
-  const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-  let i = 0;
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      if (i < chunks.length) controller.enqueue(chunks[i++]);
-      else controller.close();
+    headers: {
+      origin: ORIGIN,
+      'content-length': String(body.length),
+      'content-type': 'image/jpeg',
+      ...headers,
     },
   });
-  return new Request(`${ORIGIN}/api/uploads/${SHA}`, {
-    method: 'PUT',
-    body,
-    duplex: 'half',
-    headers: { origin: ORIGIN, 'content-length': String(total), ...headers },
-  } as RequestInit);
 }
 
 async function readAll(stream: unknown): Promise<number[]> {
@@ -174,12 +178,54 @@ describe('PUT /api/uploads/:sha256', () => {
     expect(put).not.toHaveBeenCalled();
   });
 
-  it('rejects PNG', async () => {
-    const { env, put } = makeEnv();
+  it('rejects a PNG declared as JPEG: verified after put, object deleted, no ledger row', async () => {
+    const { env, calls, objects, del } = makeEnv();
     const res = await handleUploadPut(putReq(PNG), env, SHA);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ status: 'rejected', reason: 'Not a JPEG or TIFF file.' });
-    expect(put).not.toHaveBeenCalled();
+    expect(del).toHaveBeenCalledWith(`raw/${SHA}.jpg`);
+    expect(objects.size).toBe(0);
+    expect(calls.some((c) => c.sql.includes('INSERT'))).toBe(false);
+  });
+
+  it('rejects a JPEG declared as TIFF and deletes it', async () => {
+    const { env, objects } = makeEnv();
+    const res = await handleUploadPut(putReq(JPEG, { 'content-type': 'image/tiff' }), env, SHA);
+    expect(res.status).toBe(400);
+    expect(objects.size).toBe(0);
+  });
+
+  it('stores a TIFF under .tif', async () => {
+    const { env, objects } = makeEnv();
+    const res = await handleUploadPut(putReq(TIFF, { 'content-type': 'image/tiff' }), env, SHA);
+    expect(res.status).toBe(201);
+    expect([...objects.keys()]).toEqual([`raw/${SHA}.tif`]);
+  });
+
+  it('rejects a missing or unsupported Content-Type without a put', async () => {
+    for (const ct of ['', 'image/png', 'application/octet-stream']) {
+      const { env, put } = makeEnv();
+      const res = await handleUploadPut(putReq(JPEG, { 'content-type': ct }), env, SHA);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ status: 'rejected', reason: 'Not a JPEG or TIFF file.' });
+      expect(put).not.toHaveBeenCalled();
+    }
+  });
+
+  it('accepts a Content-Type with parameters', async () => {
+    const { env } = makeEnv();
+    const res = await handleUploadPut(putReq(JPEG, { 'content-type': 'Image/JPEG; charset=binary' }), env, SHA);
+    expect(res.status).toBe(201);
+  });
+
+  it('500, object deleted and no ledger row when the verify read throws', async () => {
+    const { env, get, objects, calls } = makeEnv();
+    get.mockRejectedValue(new Error('r2 down'));
+    const res = await handleUploadPut(putReq(JPEG), env, SHA);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'Upload failed' });
+    expect(objects.size).toBe(0);
+    expect(calls.some((c) => c.sql.includes('INSERT'))).toBe(false);
   });
 
   it('413 on oversized Content-Length without reading body', async () => {
@@ -228,50 +274,29 @@ describe('PUT /api/uploads/:sha256', () => {
     for (const r of responses) expect(await r.text()).not.toContain('@');
   });
 
-  it('never calls arrayBuffer and hands put the full body in order', async () => {
-    const { env, put } = makeEnv();
-    let streamed: number[] = [];
-    put.mockImplementation(async (...a: unknown[]) => {
-      streamed = await readAll(a[1]);
-      return {};
-    });
+  it('hands put request.body itself (no JS stream wrapper) and never buffers it', async () => {
+    // Regression: wrapping the body in a JS ReadableStream cost ~10 ms CPU per photo and the free plan
+    // killed uploads with exceededCpu. R2 must receive the native request stream.
+    const { env, put, objects } = makeEnv();
     const req = putReq(JPEG);
+    const body = req.body;
     const spy = jest.spyOn(req, 'arrayBuffer');
     const res = await handleUploadPut(req, env, SHA);
     expect(res.status).toBe(201);
     expect(spy).not.toHaveBeenCalled();
-    expect(streamed).toEqual([...JPEG]);
+    expect(put.mock.calls[0][1]).toBe(body);
+    expect([...objects.get(`raw/${SHA}.jpg`)!]).toEqual([...JPEG]);
   });
 
-  it('detects a JPEG delivered in 1-byte chunks and streams every byte', async () => {
-    const { env, put } = makeEnv();
-    let streamed: number[] = [];
-    put.mockImplementation(async (...a: unknown[]) => {
-      streamed = await readAll(a[1]);
-      return {};
-    });
-    const big = new Uint8Array(1000).map((_, i) => i % 251);
-    big.set([0xff, 0xd8, 0xff, 0xe1]);
-    const req = streamReq([...big].map((b) => new Uint8Array([b])));
-    const spy = jest.spyOn(req, 'arrayBuffer');
-    const res = await handleUploadPut(req, env, SHA);
-    expect(res.status).toBe(201);
-    expect(spy).not.toHaveBeenCalled();
-    expect(put.mock.calls[0][0]).toBe(`raw/${SHA}.jpg`);
-    expect(streamed).toEqual([...big]);
+  it('verifies with a 4-byte ranged read', async () => {
+    const { env, get } = makeEnv();
+    await handleUploadPut(putReq(JPEG), env, SHA);
+    expect(get).toHaveBeenCalledWith(`raw/${SHA}.jpg`, { range: { offset: 0, length: 4 } });
   });
 
-  it('rejects a chunked PNG with no put', async () => {
+  it('rejects a body shorter than the magic bytes without a put', async () => {
     const { env, put } = makeEnv();
-    const res = await handleUploadPut(streamReq([PNG.subarray(0, 2), PNG.subarray(2)]), env, SHA);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ status: 'rejected', reason: 'Not a JPEG or TIFF file.' });
-    expect(put).not.toHaveBeenCalled();
-  });
-
-  it('rejects a body shorter than the magic bytes', async () => {
-    const { env, put } = makeEnv();
-    const res = await handleUploadPut(streamReq([new Uint8Array([0xff, 0xd8])]), env, SHA);
+    const res = await handleUploadPut(putReq(new Uint8Array([0xff, 0xd8])), env, SHA);
     expect(res.status).toBe(400);
     expect(put).not.toHaveBeenCalled();
   });
@@ -280,38 +305,12 @@ describe('PUT /api/uploads/:sha256', () => {
     const { env, put } = makeEnv();
     const req = new Request(`${ORIGIN}/api/uploads/${SHA}`, {
       method: 'PUT',
-      headers: { origin: ORIGIN, 'content-length': '0' },
+      headers: { origin: ORIGIN, 'content-length': '0', 'content-type': 'image/jpeg' },
     });
     const res = await handleUploadPut(req, env, SHA);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ status: 'rejected', reason: 'Not a JPEG or TIFF file.' });
     expect(put).not.toHaveBeenCalled();
-  });
-
-  it('pipes through FixedLengthStream with the Content-Length when the runtime has it', async () => {
-    const lengths: number[] = [];
-    class FakeFixed extends TransformStream<Uint8Array, Uint8Array> {
-      constructor(n: number) {
-        super();
-        lengths.push(n);
-      }
-    }
-    const g = globalThis as { FixedLengthStream?: unknown };
-    g.FixedLengthStream = FakeFixed;
-    try {
-      const { env, put } = makeEnv();
-      let streamed: number[] = [];
-      put.mockImplementation(async (...a: unknown[]) => {
-        streamed = await readAll(a[1]);
-        return {};
-      });
-      const res = await handleUploadPut(putReq(JPEG), env, SHA);
-      expect(res.status).toBe(201);
-      expect(lengths).toEqual([JPEG.length]);
-      expect(streamed).toEqual([...JPEG]);
-    } finally {
-      delete g.FixedLengthStream;
-    }
   });
 
   it('500 JSON when the ledger insert throws', async () => {
