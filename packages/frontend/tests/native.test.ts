@@ -19,8 +19,8 @@ const plugin = {
   signIn: jest.fn<(o: { silent: boolean }) => Promise<{ idToken: string }>>(),
   signOut: jest.fn<() => Promise<void>>(),
   hasSignedInBefore: jest.fn<() => Promise<{ value: boolean }>>(),
-  pickPhotos: jest.fn<() => Promise<{ photos: unknown[] }>>(),
-  getSharedPhotos: jest.fn<() => Promise<{ photos: unknown[] }>>(),
+  pickPhotos: jest.fn<() => Promise<{ photos: unknown[]; failed?: string[] }>>(),
+  getSharedPhotos: jest.fn<() => Promise<{ photos: unknown[]; failed?: string[] }>>(),
   addListener: jest.fn<(e: string, cb: () => void) => unknown>(),
 };
 
@@ -117,6 +117,16 @@ describe('photos', () => {
     const { files, failed } = await nativeSharedPhotos();
     expect(files.map((f) => f.name)).toEqual(['y.jpg']);
     expect(failed).toEqual(['x.jpg']);
+  });
+
+  it('photos the app could not read are listed under failed alongside fetch failures', async () => {
+    plugin.pickPhotos.mockResolvedValue({
+      photos: [photo('a.jpg', 'https://app.test/a.jpg'), photo('b.jpg', 'https://app.test/missing.jpg')],
+      failed: ['cloud.jpg'],
+    });
+    const { files, failed } = await nativePickPhotos();
+    expect(files.map((f) => f.name)).toEqual(['a.jpg']);
+    expect(failed).toEqual(['cloud.jpg', 'b.jpg']);
   });
 
   it('an empty pick returns nothing', async () => {

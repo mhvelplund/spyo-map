@@ -13,6 +13,12 @@ export interface PickedPhoto {
   webPath: string;
 }
 
+export interface PhotosResult {
+  photos: PickedPhoto[];
+  /** Names of photos the app itself could not read. Absent from app builds before it was added. */
+  failed?: string[];
+}
+
 export interface ListenerHandle {
   remove(): Promise<void> | void;
 }
@@ -23,9 +29,9 @@ export interface SpyoNativePlugin {
   signOut(): Promise<void>;
   hasSignedInBefore(): Promise<{ value: boolean }>;
   /** Resolves with [] when the user cancels. */
-  pickPhotos(): Promise<{ photos: PickedPhoto[] }>;
+  pickPhotos(): Promise<PhotosResult>;
   /** Drains the pending share queue. */
-  getSharedPhotos(): Promise<{ photos: PickedPhoto[] }>;
+  getSharedPhotos(): Promise<PhotosResult>;
   /** Synchronous through window.Capacitor.Plugins (what this page uses); a Promise via @capacitor/core. */
   addListener(event: 'photosShared', cb: () => void): ListenerHandle | Promise<ListenerHandle>;
 }
@@ -76,8 +82,8 @@ export async function nativeHasSignedInBefore(): Promise<boolean> {
   return (await requirePlugin().hasSignedInBefore()).value;
 }
 
-async function toFiles(photos: PickedPhoto[]): Promise<NativeFiles> {
-  const result: NativeFiles = { files: [], failed: [] };
+async function toFiles({ photos, failed = [] }: PhotosResult): Promise<NativeFiles> {
+  const result: NativeFiles = { files: [], failed: [...failed] };
   const read = await Promise.all(
     photos.map(async (p) => {
       try {
@@ -94,11 +100,11 @@ async function toFiles(photos: PickedPhoto[]): Promise<NativeFiles> {
 }
 
 export async function nativePickPhotos(): Promise<NativeFiles> {
-  return toFiles((await requirePlugin().pickPhotos()).photos);
+  return toFiles(await requirePlugin().pickPhotos());
 }
 
 export async function nativeSharedPhotos(): Promise<NativeFiles> {
-  return toFiles((await requirePlugin().getSharedPhotos()).photos);
+  return toFiles(await requirePlugin().getSharedPhotos());
 }
 
 /** Calls cb whenever photos are shared to the app; returns an unsubscribe. */
