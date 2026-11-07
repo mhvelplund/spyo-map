@@ -1,7 +1,8 @@
+import type { IdTokenSignInRequest, MeResponse } from "@spyo-map/shared";
 import type { Env } from "../env.js";
 import { findActiveUploaderByEmail } from "../services/uploaders.js";
 import { parseCookies, serializeCookie } from "./cookies.js";
-import { google } from "./google.js";
+import { google, verifyIdToken } from "./google.js";
 import { codeChallengeS256, constantTimeEqual, randomToken } from "./pkce.js";
 import {
   isUsableSessionSecret,
@@ -122,6 +123,47 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
   return redirect(UPLOAD_PAGE, [clear, session]);
 }
 
+/** The mobile app's native Google sign-in: trades a Google ID token for the same session cookie as callback(). */
+async function idTokenSignIn(request: Request, env: Env, fetchFn: typeof fetch): Promise<Response> {
+  if (!isSameOrigin(request)) return json({ error: "Forbidden" }, 403);
+  if (!isConfigured(env)) return json({ error: "Sign-in is not configured" }, 500);
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Bad request" }, 400);
+  }
+  const idToken = (body as Partial<IdTokenSignInRequest> | null)?.idToken;
+  if (typeof idToken !== "string" || !idToken) return json({ error: "Bad request" }, 400);
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  let email: string | null;
+  try {
+    email = await verifyIdToken(idToken, env.GOOGLE_CLIENT_ID, fetchFn, nowSec);
+  } catch {
+    email = null;
+  }
+  if (!email) return json({ error: "Invalid token" }, 401);
+
+  let token: string;
+  let displayName: string;
+  try {
+    const uploader = await findActiveUploaderByEmail(env.DB, email);
+    if (!uploader) return json({ error: "Not allowed" }, 403);
+    displayName = uploader.displayName;
+    token = await signSession({ uploaderId: uploader.id, exp: nowSec + SESSION_TTL_SECONDS }, env.SESSION_SECRET);
+  } catch {
+    return json({ error: "Sign-in failed" }, 500);
+  }
+  const res = json({ displayName } satisfies MeResponse, 200);
+  res.headers.append(
+    "set-cookie",
+    serializeCookie(SESSION_COOKIE, token, { maxAge: SESSION_TTL_SECONDS, path: "/", httpOnly: true }),
+  );
+  return res;
+}
+
 function logout(request: Request): Response {
   if (!isSameOrigin(request)) return json({ error: "Forbidden" }, 403);
   const headers = new Headers({ "cache-control": "no-store" });
@@ -143,6 +185,11 @@ export async function handleAuthRequest(
   if (pathname === "/auth/callback/google") {
     return method === "GET"
       ? callback(request, env, fetchFn)
+      : json({ error: "Method not allowed" }, 405);
+  }
+  if (pathname === "/auth/google/idtoken") {
+    return method === "POST"
+      ? idTokenSignIn(request, env, fetchFn)
       : json({ error: "Method not allowed" }, 405);
   }
   if (pathname === "/auth/logout") {

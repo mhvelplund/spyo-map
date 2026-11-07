@@ -3,6 +3,36 @@ import type { OAuthProvider } from "./providers.js";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
+const ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+
+/**
+ * Verifies a Google ID token (from the mobile app's native sign-in) with Google's tokeninfo endpoint.
+ * Returns the verified email, or null if the token is invalid, for another audience, unverified or expired.
+ */
+export async function verifyIdToken(
+  idToken: string,
+  clientId: string,
+  fetchFn: typeof fetch,
+  nowSec: number,
+): Promise<string | null> {
+  const res = await fetchFn(`${TOKENINFO_URL}?${new URLSearchParams({ id_token: idToken }).toString()}`);
+  if (!res.ok) return null;
+  const info = (await res.json()) as Record<string, unknown>;
+  const verified = info.email_verified === true || info.email_verified === "true";
+  if (
+    info.aud !== clientId ||
+    typeof info.iss !== "string" ||
+    !ISSUERS.has(info.iss) ||
+    !verified ||
+    !(Number(info.exp) > nowSec) ||
+    typeof info.email !== "string" ||
+    !info.email
+  ) {
+    return null;
+  }
+  return info.email;
+}
 
 export const google: OAuthProvider = {
   id: "google",
