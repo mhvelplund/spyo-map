@@ -32,8 +32,14 @@ export interface MeResponse {
   displayName: string;
 }
 
+/** Body of POST /auth/google/idtoken: a Google ID token obtained by the mobile app's native sign-in. */
+export interface IdTokenSignInRequest {
+  idToken: string;
+}
+
 export const REJECT_COPY = {
   noGps: 'No location data — on Android the browser may have removed it; try a computer.',
   wrongType: 'Not a JPEG or TIFF file.',
   tooLarge: 'Larger than 50 MB.',
+  noGpsInApp: 'No location data — the sharing app may have removed it; use Choose photos instead.',
 } as const;
