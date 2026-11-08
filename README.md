@@ -1,10 +1,18 @@
 # Spyo Map
 
+<img src="docs/img/slop-small.jpg" alt="For robots, by robots. Vibed without love or skill." height="24" />
+
 A browser-based web application that displays geo-tagged images on an interactive map. Browse photos by location, view
 in a modal lightbox, navigate between nearby images, and share on social media.
 
 Built with a React + Leaflet (OpenStreetMap) frontend, running entirely on Cloudflare: a Worker serves the SPA and a
 JSON API backed by D1, and images are served directly from an R2 bucket.
+
+> [!TIP]
+> 
+> I _may_ have gone a little overboard and also made a
+> [companion Android app](https://github.com/mhvelplund/spyo-map-mobile) because I got sick of uploading the images
+> manually from my PC. Hard to say, I mean, how much is too much.
 
 ## Development story
 
@@ -56,8 +64,8 @@ comes from the Worker's REST API, which reads D1 directly on every request.
 - [mise](https://mise.jdx.dev/) (optional, for tool version management)
 - A Cloudflare account is only needed for deploying; local dev uses `wrangler`'s local D1 emulation.
 
-See `docs/cloudflare-bootstrap.md` for one-time Cloudflare setup (R2 bucket, D1 database, API tokens) and for
-running the extractor against a live bucket.
+See `docs/cloudflare-bootstrap.md` for one-time Cloudflare setup (R2 bucket, D1 database, API tokens) and for running
+the extractor against a live bucket.
 
 ### Start the Worker and frontend
 
@@ -134,8 +142,8 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 
 Deploys run from GitHub Actions on push to `main` (`.github/workflows/deploy.yml`): install, lint, test, build the
 frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on demand (`.github/workflows/ingest.yml`). See
-`docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and
-GitHub repository secrets).
+`docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and GitHub
+repository secrets).
 
 The `raw/` prefix should remain private; only `images/` and `images/thumbnails/` need public read.
 
