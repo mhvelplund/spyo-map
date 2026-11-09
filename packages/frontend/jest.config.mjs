@@ -27,6 +27,7 @@ const config = {
         '^\\.\\./config\\.js$': '<rootDir>/tests/__mocks__/config.ts',
         '^(\\.{1,2}/.*)\\.js$': '$1',
         '\\.css$': '<rootDir>/tests/__mocks__/styleMock.js',
+        '\\.png$': '<rootDir>/tests/__mocks__/fileMock.js',
       },
       transform: {
         '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: 'tsconfig.test.json' }],

@@ -16,6 +16,7 @@ import {
 } from '../utils/native.js';
 import { runWithConcurrency } from '../utils/pool.js';
 import { planBatch } from '../utils/uploadBatch.js';
+import mapIcon from '../assets/map.png';
 import './UploadPage.css';
 
 const client = new UploadClient();
@@ -43,7 +44,7 @@ interface Dup {
 
 const MapButton = () => (
   <Link to="/map" className="fab" aria-label="Show map">
-    <i className="fa-regular fa-map" aria-hidden="true" />
+    <img src={mapIcon} alt="" className="fab-icon" />
   </Link>
 );
 

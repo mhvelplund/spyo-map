@@ -6,7 +6,8 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type React from 'react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
-import type { ImageRecord, MapViewProps } from '../types';
+import type { GeoLocation, ImageRecord, MapViewProps } from '../types';
+import dotIcon from '../assets/dot.png';
 import './MapContainer.css';
 
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.006];
@@ -20,6 +21,7 @@ interface MarkerLayerProps {
 
 interface MapViewPropsExtended extends MapViewProps {
   onMapReady?: (map: L.Map) => void;
+  userPosition?: GeoLocation | null;
 }
 
 const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageId, onImageSelect }) => {
@@ -81,6 +83,39 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageI
   return null;
 };
 
+// Own pane so the dot sits above the image markers (markerPane, z 600) and below popups; the page's floating button
+// (z 1100) stays above it.
+const USER_PANE = 'userLocation';
+const USER_ICON = L.icon({ iconUrl: dotIcon, iconSize: [24, 24], iconAnchor: [12, 12] });
+
+const UserLocationLayer: React.FC<{ position: GeoLocation }> = ({ position }) => {
+  const map = useMap();
+  const markerRef = useRef<L.Marker | null>(null);
+  const { latitude, longitude } = position;
+
+  useEffect(() => {
+    if (!map.getPane(USER_PANE)) map.createPane(USER_PANE).style.zIndex = '650';
+    const marker = L.marker([latitude, longitude], {
+      icon: USER_ICON,
+      pane: USER_PANE,
+      interactive: false,
+      keyboard: false,
+    }).addTo(map);
+    markerRef.current = marker;
+    return () => {
+      marker.remove();
+      markerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]); // created once; position updates move it below
+
+  useEffect(() => {
+    markerRef.current?.setLatLng([latitude, longitude]);
+  }, [latitude, longitude]);
+
+  return null;
+};
+
 interface MapReadyCaptureProps {
   onReady?: (map: L.Map) => void;
 }
@@ -95,7 +130,13 @@ const MapReadyCapture: React.FC<MapReadyCaptureProps> = ({ onReady }) => {
   return null;
 };
 
-const MapView: React.FC<MapViewPropsExtended> = ({ images, selectedImageId, onImageSelect, onMapReady }) => {
+const MapView: React.FC<MapViewPropsExtended> = ({
+  images,
+  selectedImageId,
+  onImageSelect,
+  onMapReady,
+  userPosition,
+}) => {
   const initialCenter: [number, number] = images.length > 0
     ? [
         images.reduce((sum, img) => sum + img.latitude, 0) / images.length,
@@ -121,6 +162,7 @@ const MapView: React.FC<MapViewPropsExtended> = ({ images, selectedImageId, onIm
           selectedImageId={selectedImageId}
           onImageSelect={onImageSelect}
         />
+        {userPosition && <UserLocationLayer position={userPosition} />}
         <MapReadyCapture onReady={onMapReady} />
       </MapContainer>
     </div>
