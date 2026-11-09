@@ -6,6 +6,9 @@ import { apiClient } from '../services';
 import type { ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';
 import { computeNearbyGroup } from '../utils/nearbyGroup';
+import { getPosition, hasGps } from '../utils/geolocation';
+import { canOpenGallery, nativeOpenGallery } from '../utils/native';
+import { initialViewBounds } from '../utils/initialView';
 import ImageModal from './ImageModal';
 import MapView from './MapView';
 import './MapPage.css';
@@ -19,6 +22,7 @@ const MapPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<ImageRecord | null>(null);
   const [nearbyGroup, setNearbyGroup] = useState<ImageRecord[]>([]);
+  const [showAlbum] = useState(canOpenGallery);
 
   // useRef fields — mutations do NOT trigger re-renders
   const mapRef = useRef<L.Map | null>(null);
@@ -103,8 +107,13 @@ const MapPage: React.FC = () => {
     if (pendingPanRef.current) {
       map.panTo(pendingPanRef.current);
       pendingPanRef.current = null;
+    } else if (!rawImageId && hasGps()) {
+      // Start at the device, wide enough to show the nearest image. MapView calls this once, when the map mounts.
+      void getPosition().then((pos) => {
+        if (pos && mapRef.current === map) map.fitBounds(initialViewBounds(pos, images));
+      });
     }
-  }, []);
+  }, [images, rawImageId]);
 
   const handleImageSelect = useCallback((imageId: string) => {
     const cleanId = extractImageId(imageId);
@@ -181,6 +190,17 @@ const MapPage: React.FC = () => {
           onMapReady={onMapReady}
         />
       </div>
+
+      {showAlbum && !selectedImage && (
+        <button
+          type="button"
+          className="fab"
+          aria-label="Open photo album"
+          onClick={() => void nativeOpenGallery()}
+        >
+          <i className="fa-regular fa-images" aria-hidden="true" />
+        </button>
+      )}
 
       <ImageModal
         image={selectedImage}

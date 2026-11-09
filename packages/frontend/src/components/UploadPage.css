@@ -1,7 +1,8 @@
 .upload-page {
   max-width: 720px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  /* Bottom room for the floating map button. */
+  padding: 2rem 1rem calc(6rem + env(safe-area-inset-bottom, 0px));
   color: #333;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;

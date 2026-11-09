@@ -53,6 +53,16 @@ describe('UploadPage', () => {
     Object.defineProperty(URL, 'revokeObjectURL', { value: revoke, configurable: true });
   });
 
+  it.each([
+    ['loading', () => getMe.mockReturnValue(new Promise(() => {}))],
+    ['signed out', () => getMe.mockResolvedValue(null)],
+    ['signed in', () => getMe.mockResolvedValue({ displayName: 'Ann' })],
+  ])('links to the map while %s', async (_state, setup) => {
+    setup();
+    renderAt('/upload');
+    expect(await screen.findByRole('link', { name: 'Show map' })).toHaveAttribute('href', '/map');
+  });
+
   it('shows a sign-in link when signed out', async () => {
     getMe.mockResolvedValue(null);
     renderAt('/upload');
