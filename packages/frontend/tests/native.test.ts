@@ -7,6 +7,8 @@ import {
   nativePickPhotos,
   nativeSharedPhotos,
   onNativeShare,
+  canOpenGallery,
+  nativeOpenGallery,
 } from '../src/utils/native.js';
 
 const g = globalThis as unknown as { Capacitor?: unknown };
@@ -22,6 +24,7 @@ const plugin = {
   pickPhotos: jest.fn<() => Promise<{ photos: unknown[]; failed?: string[] }>>(),
   getSharedPhotos: jest.fn<() => Promise<{ photos: unknown[]; failed?: string[] }>>(),
   addListener: jest.fn<(e: string, cb: () => void) => unknown>(),
+  openGallery: jest.fn<() => Promise<void>>(),
 };
 
 function install(withPlugin = true, native = true) {
@@ -154,5 +157,28 @@ describe('onNativeShare', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(remove).toHaveBeenCalled();
+  });
+});
+
+describe('gallery', () => {
+  it('canOpenGallery is false outside the app', () => {
+    delete g.Capacitor;
+    expect(canOpenGallery()).toBe(false);
+  });
+  it('canOpenGallery is false for app builds without openGallery', () => {
+    const old: Partial<typeof plugin> = { ...plugin };
+    delete old.openGallery;
+    g.Capacitor = { isNativePlatform: () => true, Plugins: { SpyoNative: old } };
+    expect(canOpenGallery()).toBe(false);
+  });
+  it('opens the gallery', async () => {
+    plugin.openGallery.mockResolvedValue();
+    expect(canOpenGallery()).toBe(true);
+    expect(await nativeOpenGallery()).toBe(true);
+    expect(plugin.openGallery).toHaveBeenCalled();
+  });
+  it('returns false when no gallery app exists', async () => {
+    plugin.openGallery.mockRejectedValue(codeError('NO_APP'));
+    expect(await nativeOpenGallery()).toBe(false);
   });
 });

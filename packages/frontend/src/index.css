@@ -80,3 +80,32 @@ button:focus-visible {
     padding: 0.8em 1.4em;
   }
 }
+
+/* Round floating action button, bottom center (map page album button, upload page map button). */
+.fab {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1100; /* above Leaflet panes and controls */
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #2e9e4f;
+  color: #fff;
+  font-size: 24px;
+  text-decoration: none;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.fab:hover,
+.fab:focus-visible {
+  background-color: #268a44;
+  color: #fff;
+}

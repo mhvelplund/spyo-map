@@ -32,6 +32,8 @@ export interface SpyoNativePlugin {
   pickPhotos(): Promise<PhotosResult>;
   /** Drains the pending share queue. */
   getSharedPhotos(): Promise<PhotosResult>;
+  /** Opens the phone's gallery app; rejects with code 'NO_APP'. Absent from app builds before it was added. */
+  openGallery?(): Promise<void>;
   /** Synchronous through window.Capacitor.Plugins (what this page uses); a Promise via @capacitor/core. */
   addListener(event: 'photosShared', cb: () => void): ListenerHandle | Promise<ListenerHandle>;
 }
@@ -105,6 +107,23 @@ export async function nativePickPhotos(): Promise<NativeFiles> {
 
 export async function nativeSharedPhotos(): Promise<NativeFiles> {
   return toFiles(await requirePlugin().getSharedPhotos());
+}
+
+/** True in app builds that can open the phone's gallery app. */
+export function canOpenGallery(): boolean {
+  return typeof plugin()?.openGallery === 'function';
+}
+
+/** Opens the phone's gallery app. False when the app is too old or no gallery app is installed. */
+export async function nativeOpenGallery(): Promise<boolean> {
+  const p = plugin();
+  if (typeof p?.openGallery !== 'function') return false;
+  try {
+    await p.openGallery();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Calls cb whenever photos are shared to the app; returns an unsubscribe. */
