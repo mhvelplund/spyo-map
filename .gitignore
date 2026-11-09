@@ -35,7 +35,10 @@ images.db
 .env.github
 .dev.vars
 .worktrees/
-*.ignore.superpowers/
+
+# AI
+*.ignore
 .superpowers/
 docs/superpowers/
 HANDOFF.md
+CLAUDE.local.md
