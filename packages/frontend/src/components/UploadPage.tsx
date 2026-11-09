@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { REJECT_COPY, type MeResponse } from '@spyo-map/shared';
 import { UploadClient, UPLOAD_FAILED_COPY } from '../services/UploadClient.js';
 import { inspectFile } from '../utils/fileInspection.js';
@@ -40,6 +40,12 @@ interface Dup {
   id: number;
   file: File;
 }
+
+const MapButton = () => (
+  <Link to="/map" className="fab" aria-label="Show map">
+    <i className="fa-regular fa-map" aria-hidden="true" />
+  </Link>
+);
 
 const isSignedOut = (e: unknown) => e instanceof Error && e.name === 'SignedOutError';
 
@@ -241,6 +247,7 @@ const UploadPage: React.FC = () => {
   if (me === undefined) {
     return (
       <div className="upload-page">
+        <MapButton />
         <p>Loading…</p>
       </div>
     );
@@ -249,6 +256,7 @@ const UploadPage: React.FC = () => {
   if (me === null) {
     return (
       <div className="upload-page">
+        <MapButton />
         <h1>Upload</h1>
         {(params.get('denied') === '1' || signInError === 'denied') && (
           <p role="alert">This account is not allowed to upload.</p>
@@ -280,6 +288,7 @@ const UploadPage: React.FC = () => {
   const hasResults = added.length + duplicates.length + rejected.length > 0;
   return (
     <div className="upload-page">
+      <MapButton />
       <header className="upload-header">
         <h1>Upload</h1>
         <span>
