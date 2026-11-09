@@ -11,6 +11,23 @@ export function hasGps(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 }
 
+/**
+ * Calls `onChange` with each device position until the returned stop function is called. Errors and denial are
+ * silent (no calls); returns a no-op stop function when geolocation is unavailable.
+ */
+export function watchPosition(onChange: (pos: GeoLocation) => void): () => void {
+  try {
+    const id = navigator.geolocation.watchPosition(
+      (p) => onChange({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 10_000 }
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  } catch {
+    return () => {};
+  }
+}
+
 /** The device position, or null if unavailable, denied or too slow. */
 export function getPosition(timeoutMs = 10_000): Promise<GeoLocation | null> {
   return new Promise((resolve) => {

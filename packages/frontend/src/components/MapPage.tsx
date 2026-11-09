@@ -3,12 +3,13 @@ import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { apiClient } from '../services';
-import type { ImageRecord } from '../types';
+import type { GeoLocation, ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';
 import { computeNearbyGroup } from '../utils/nearbyGroup';
-import { getPosition, hasGps } from '../utils/geolocation';
+import { getPosition, hasGps, watchPosition } from '../utils/geolocation';
 import { canOpenGallery, nativeOpenGallery } from '../utils/native';
 import { initialViewBounds } from '../utils/initialView';
+import albumIcon from '../assets/album.png';
 import ImageModal from './ImageModal';
 import MapView from './MapView';
 import './MapPage.css';
@@ -23,6 +24,7 @@ const MapPage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<ImageRecord | null>(null);
   const [nearbyGroup, setNearbyGroup] = useState<ImageRecord[]>([]);
   const [showAlbum] = useState(canOpenGallery);
+  const [userPosition, setUserPosition] = useState<GeoLocation | null>(null);
 
   // useRef fields — mutations do NOT trigger re-renders
   const mapRef = useRef<L.Map | null>(null);
@@ -73,6 +75,9 @@ const MapPage: React.FC = () => {
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // runs once on mount — rawImageId is intentionally not a dep (deep-link only)
+
+  // Track the device for the "you are here" dot.
+  useEffect(() => (hasGps() ? watchPosition(setUserPosition) : undefined), []);
 
   // Sync modal state when URL changes (browser back/forward navigation)
   // `images` must be loaded before we can resolve image IDs
@@ -188,6 +193,7 @@ const MapPage: React.FC = () => {
           selectedImageId={selectedImage?.id}
           onImageSelect={handleImageSelect}
           onMapReady={onMapReady}
+          userPosition={userPosition}
         />
       </div>
 
@@ -198,7 +204,7 @@ const MapPage: React.FC = () => {
           aria-label="Open photo album"
           onClick={() => void nativeOpenGallery()}
         >
-          <i className="fa-regular fa-images" aria-hidden="true" />
+          <img src={albumIcon} alt="" className="fab-icon" />
         </button>
       )}
 

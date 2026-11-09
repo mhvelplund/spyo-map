@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, afterEach } from '@jest/globals';
-import { getPosition, hasGps } from '../src/utils/geolocation.js';
+import { getPosition, hasGps, watchPosition } from '../src/utils/geolocation.js';
 
 const g = globalThis as unknown as { matchMedia?: unknown; Capacitor?: unknown };
 const realNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -42,6 +42,36 @@ describe('hasGps', () => {
     setNavigator({ geolocation });
     g.matchMedia = () => ({ matches: false });
     expect(hasGps()).toBe(false);
+  });
+});
+
+describe('watchPosition', () => {
+  it('reports each position and clears the watch on stop', () => {
+    const clearWatch = jest.fn();
+    let report: (p: unknown) => void = () => {};
+    setNavigator({
+      geolocation: {
+        watchPosition: (ok: (p: unknown) => void) => {
+          report = ok;
+          return 7;
+        },
+        clearWatch,
+      },
+    });
+    const onChange = jest.fn();
+    const stop = watchPosition(onChange);
+    report({ coords: { latitude: 1, longitude: 2 } });
+    report({ coords: { latitude: 3, longitude: 4 } });
+    expect(onChange.mock.calls).toEqual([[{ latitude: 1, longitude: 2 }], [{ latitude: 3, longitude: 4 }]]);
+    stop();
+    expect(clearWatch).toHaveBeenCalledWith(7);
+  });
+
+  it('is a no-op without geolocation', () => {
+    setNavigator({});
+    const onChange = jest.fn();
+    expect(() => watchPosition(onChange)()).not.toThrow();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

@@ -104,6 +104,11 @@ button:focus-visible {
   cursor: pointer;
 }
 
+.fab-icon {
+  width: 36px;
+  height: 36px;
+}
+
 .fab:hover,
 .fab:focus-visible {
   background-color: #268a44;
