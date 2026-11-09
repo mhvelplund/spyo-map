@@ -6,6 +6,8 @@ import { apiClient } from '../services';
 import type { ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';
 import { computeNearbyGroup } from '../utils/nearbyGroup';
+import { getPosition, hasGps } from '../utils/geolocation';
+import { initialViewBounds } from '../utils/initialView';
 import ImageModal from './ImageModal';
 import MapView from './MapView';
 import './MapPage.css';
@@ -103,8 +105,13 @@ const MapPage: React.FC = () => {
     if (pendingPanRef.current) {
       map.panTo(pendingPanRef.current);
       pendingPanRef.current = null;
+    } else if (!rawImageId && hasGps()) {
+      // Start at the device, wide enough to show the nearest image. MapView calls this once, when the map mounts.
+      void getPosition().then((pos) => {
+        if (pos && mapRef.current === map) map.fitBounds(initialViewBounds(pos, images));
+      });
     }
-  }, []);
+  }, [images, rawImageId]);
 
   const handleImageSelect = useCallback((imageId: string) => {
     const cleanId = extractImageId(imageId);
