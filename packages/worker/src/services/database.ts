@@ -121,6 +121,31 @@ export async function setImageLocation(
     .run();
 }
 
+export async function setHidden(
+  db: D1Database,
+  contentHash: string,
+  privateName: string | null,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "INSERT INTO image_overrides (content_hash, hidden, private_name, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET hidden = excluded.hidden, private_name = excluded.private_name, updated_at = excluded.updated_at",
+    )
+    .bind(contentHash, privateName === null ? 0 : 1, privateName, now)
+    .run();
+}
+
+export async function findOverride(
+  db: D1Database,
+  contentHash: string,
+): Promise<{ hidden: boolean; privateName: string | null } | null> {
+  const row = await db
+    .prepare("SELECT hidden, private_name FROM image_overrides WHERE content_hash = ?")
+    .bind(contentHash)
+    .first<{ hidden: number; private_name: string | null }>();
+  return row ? { hidden: row.hidden === 1, privateName: row.private_name } : null;
+}
+
 export async function queryImagesByContentHash(
   db: D1Database,
   contentHash: string,

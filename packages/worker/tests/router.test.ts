@@ -13,6 +13,8 @@ jest.unstable_mockModule('../src/services/database.js', () => ({
   findContentHash: jest.fn(),
   setImageLocation: jest.fn(),
   queryImagesByContentHash: jest.fn(),
+  setHidden: jest.fn(),
+  findOverride: jest.fn(),
 }));
 
 const mockFindUploaderById = jest.fn<(db: unknown, id: number) => Promise<unknown>>();

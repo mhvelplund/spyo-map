@@ -2,6 +2,7 @@ import type { MeResponse } from "@spyo-map/shared";
 import type { Env } from "./env.js";
 import { handleUploadCheck, handleUploadPut } from "./uploads/handlers.js";
 import { handleSetLocation } from "./admin/location.js";
+import { handleHide, handleUnhide } from "./admin/visibility.js";
 import { currentUploader } from "./auth/currentUploader.js";
 import {
   queryAllImages,
@@ -60,7 +61,7 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
   }
 
   if (resource !== "images") return notFound();
-  // Every /api/images route is read-only except PUT /api/images/:id/location.
+  // Every /api/images route is read-only except PUT /api/images/:id/location and POST /api/images/:id/(hide|unhide).
   if (segments.length === 4 && action === "location" && rawId !== undefined) {
     if (request.method !== "PUT") return methodNotAllowed();
     let id = rawId;
@@ -70,6 +71,16 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
       // keep rawId; lookup will 404
     }
     return handleSetLocation(request, env, id);
+  }
+  if (segments.length === 4 && (action === "hide" || action === "unhide") && rawId !== undefined) {
+    if (request.method !== "POST") return methodNotAllowed();
+    let id = rawId;
+    try {
+      id = decodeURIComponent(rawId);
+    } catch {
+      // keep rawId; lookup will 404
+    }
+    return action === "hide" ? handleHide(request, env, id) : handleUnhide(request, env, id);
   }
   if (!isGet) return methodNotAllowed();
 

@@ -26,7 +26,13 @@ database_id = "d2237940-aa4a-4574-a1b8-6a084270cc8e"
 migrations_dir = "migrations"
 
 # Private bucket for raw/ uploads (also failed/ and originals/). It must never get a custom domain or r2.dev: these
-# objects keep their full EXIF. Processed images live in the public "spyo-map" bucket, which the Worker never touches.
+# objects keep their full EXIF.
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "spyo-map-private"
+
+# Public bucket with processed images. The Worker copies objects inside it (images/ <-> private/) to hide and unhide
+# photos; it still never proxies image bytes to clients.
+[[r2_buckets]]
+binding = "PUBLIC_BUCKET"
+bucket_name = "spyo-map"
