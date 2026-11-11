@@ -1,6 +1,8 @@
 .header-btn {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
+  box-sizing: border-box;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -13,7 +15,8 @@
   text-decoration: none;
 }
 
-.header-btn:hover {
+.header-btn:hover,
+.header-btn:focus-visible {
   background-color: #268a44;
 }
 

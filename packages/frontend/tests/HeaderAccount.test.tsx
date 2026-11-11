@@ -63,8 +63,19 @@ describe('HeaderAccount', () => {
     expect(screen.getByText("This Google account isn't allowed to sign in.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText("This Google account isn't allowed to sign in.")).not.toBeInTheDocument();
-    expect(screen.getByTestId('search')).toHaveTextContent('');
     expect(screen.getByTestId('search').textContent).toBe('');
+  });
+
+  it('swallows a rejecting onSignOut', async () => {
+    const onSignOut = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('boom'));
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    renderAt({ displayName: 'MH', isAdmin: false }, onSignOut);
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out MH' }));
+    await new Promise((r) => setTimeout(r, 10));
+    process.off('unhandledRejection', unhandled);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+    expect(unhandled).not.toHaveBeenCalled();
   });
 
   it('shows the error notice', () => {

@@ -46,7 +46,10 @@ const HeaderAccount: React.FC<HeaderAccountProps> = ({ me, onSignOut }) => {
             className="header-btn"
             title={me.displayName}
             aria-label={`Sign out ${me.displayName}`}
-            onClick={() => void onSignOut()}
+            onClick={() => {
+              // useSession clears `me` even when logout rejects; nothing to show.
+              onSignOut().catch(() => undefined);
+            }}
           >
             <svg viewBox="0 0 24 24" fill="#fff" stroke="#fff" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="8" r="4" />
