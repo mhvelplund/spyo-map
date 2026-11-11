@@ -381,9 +381,11 @@ describe('OAuth return target', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('an unknown return segment falls back to upload', async () => {
-    const res = await run('.//evil.com', stubFetch({ email: EMAIL, email_verified: true }));
+  it('an unknown return segment is rejected to the upload error url', async () => {
+    const fetchFn = stubFetch({ email: EMAIL, email_verified: true });
+    const res = await run('.//evil.com', fetchFn);
     expect(res.headers.get('location')).toBe('/#/upload?error=1');
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 });
 

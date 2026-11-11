@@ -23,14 +23,25 @@ jest.unstable_mockModule('../src/utils/native', () => native);
 
 const { useSession } = await import('../src/hooks/useSession');
 
+const flush = () =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+
 const ME: Me = { displayName: 'MH', isAdmin: true };
 
 describe('useSession', () => {
+  const unhandled = jest.fn();
   beforeEach(() => {
     jest.resetAllMocks();
+    process.on('unhandledRejection', unhandled);
     native.isNativeApp.mockReturnValue(false);
     native.nativeHasSignedInBefore.mockResolvedValue(true);
     logout.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    process.off('unhandledRejection', unhandled);
   });
 
   it('is loading until getMe resolves, then exposes me (web)', async () => {
@@ -74,14 +85,16 @@ describe('useSession', () => {
       signInWithIdToken.mockResolvedValue('denied');
       const { result } = renderHook(() => useSession());
       await waitFor(() => expect(signInWithIdToken).toHaveBeenCalled());
-      await waitFor(() => expect(result.current.me).toBeNull());
+      await flush();
+      expect(result.current.me).toBeNull();
     });
 
     it('stays null when nativeSignIn returns null', async () => {
       native.nativeSignIn.mockResolvedValue(null);
       const { result } = renderHook(() => useSession());
       await waitFor(() => expect(native.nativeSignIn).toHaveBeenCalled());
-      await waitFor(() => expect(result.current.me).toBeNull());
+      await flush();
+      expect(result.current.me).toBeNull();
       expect(signInWithIdToken).not.toHaveBeenCalled();
     });
 
@@ -89,14 +102,19 @@ describe('useSession', () => {
       native.nativeSignIn.mockRejectedValue(new Error('boom'));
       const { result } = renderHook(() => useSession());
       await waitFor(() => expect(native.nativeSignIn).toHaveBeenCalled());
-      await waitFor(() => expect(result.current.me).toBeNull());
+      await flush();
+      expect(result.current.me).toBeNull();
+      // Node reports unhandled rejections on a later tick.
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).not.toHaveBeenCalled();
     });
 
     it('does not renew when never signed in before', async () => {
       native.nativeHasSignedInBefore.mockResolvedValue(false);
       const { result } = renderHook(() => useSession());
-      await waitFor(() => expect(result.current.me).toBeNull());
       await waitFor(() => expect(native.nativeHasSignedInBefore).toHaveBeenCalled());
+      await flush();
+      expect(result.current.me).toBeNull();
       expect(native.nativeSignIn).not.toHaveBeenCalled();
     });
   });

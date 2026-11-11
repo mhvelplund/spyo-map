@@ -1,13 +1,18 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { jest } from '@jest/globals';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
 
 const native = { isNativeApp: jest.fn<() => boolean>() };
 jest.unstable_mockModule('../src/utils/native', () => native);
 
 const { default: HeaderAccount } = await import('../src/components/HeaderAccount');
 
-const LocationProbe = () => <div data-testid="search">{useLocation().search}</div>;
+const LocationProbe = () => (
+  <>
+    <div data-testid="search">{useLocation().search}</div>
+    <div data-testid="navtype">{useNavigationType()}</div>
+  </>
+);
 
 const renderAt = (
   me: { displayName: string; isAdmin: boolean } | null | undefined,
@@ -64,6 +69,7 @@ describe('HeaderAccount', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText("This Google account isn't allowed to sign in.")).not.toBeInTheDocument();
     expect(screen.getByTestId('search').textContent).toBe('');
+    expect(screen.getByTestId('navtype').textContent).toBe('REPLACE');
   });
 
   it('swallows a rejecting onSignOut', async () => {
@@ -86,5 +92,6 @@ describe('HeaderAccount', () => {
   it('drops the param after a successful sign-in', () => {
     renderAt({ displayName: 'MH', isAdmin: false }, undefined, '/map?signin=denied');
     expect(screen.getByTestId('search').textContent).toBe('');
+    expect(screen.getByTestId('navtype').textContent).toBe('REPLACE');
   });
 });

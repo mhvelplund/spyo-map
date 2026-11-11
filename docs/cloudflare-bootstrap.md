@@ -198,10 +198,17 @@ npm run images -- remove <imageId> --remote
 
 ## Admins
 
-Admin access is the `is_admin` flag on `uploaders` (migration `0003`). Grant it with a remote D1 update, replacing `<id>` with the uploader id:
+Admin access is the `is_admin` flag on `uploaders` (migration `0003`), which already makes uploader 1 an admin. Grant
+it to another uploader with a remote D1 update, replacing `<id>` with the uploader id:
 
 ```bash
 npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "UPDATE uploaders SET is_admin = 1 WHERE id = <id>;"
+```
+
+Revoke it the same way:
+
+```bash
+npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "UPDATE uploaders SET is_admin = 0 WHERE id = <id>;"
 ```
 
 ## Uploading photos
