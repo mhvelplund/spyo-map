@@ -229,6 +229,23 @@ describe('unhide', () => {
     expect(s.override()!.private_name).not.toBe(first);
   });
 
+  it('409s Image files missing when the private full-size file is gone, keeping it hidden', async () => {
+    const s = setup();
+    s.insert('a', 'h1');
+    s.seed('a');
+    await handleApiRequest(post('hide'), s.env);
+    const name = s.override()!.private_name!;
+    s.store.delete(`private/${name}.jpg`);
+    s.log.length = 0;
+    const res = await handleApiRequest(post('unhide'), s.env);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Image files missing' });
+    expect(s.override()).toMatchObject({ hidden: 1, private_name: name });
+    expect(s.log.filter((o) => o.op !== 'get')).toEqual([]);
+    expect(s.store.has(`private/thumbnails/${name}.jpg`)).toBe(true);
+    expect([...s.store.keys()].filter((k) => k.startsWith('images/'))).toEqual([]);
+  });
+
   it('409s when not hidden', async () => {
     const s = setup();
     s.insert('a', 'h1');

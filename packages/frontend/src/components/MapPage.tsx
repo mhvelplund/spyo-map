@@ -47,51 +47,118 @@ const MapPage: React.FC = () => {
   const mapRef = useRef<L.Map | null>(null);
   const pendingPanRef = useRef<[number, number] | null>(null);
 
+  // Read through refs so a reload can reconcile the list and open lightbox without re-running on every change.
+  const selectedRef = useRef(selectedImage);
+  const imagesRef = useRef(images);
+  // Id a reload just closed. Navigation lands as a transition, so the URL sync below briefly still sees it.
+  const closedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selectedImage;
+    imagesRef.current = images;
+  }, [selectedImage, images]);
+
+  // Swap in a reloaded list. The open photo is refreshed, or closed when the new list no longer has it (e.g. a
+  // hidden photo after sign-out).
+  const reconcileImages = (loadedImages: ImageRecord[]) => {
+    setImages(loadedImages);
+    const current = selectedRef.current;
+    if (!current) return;
+    const fresh = loadedImages.find(img => img.id === current.id);
+    if (!fresh) {
+      closedIdRef.current = current.id;
+      setSelectedImage(null);
+      setNearbyGroup([]);
+      navigate('/map', { replace: true });
+      return;
+    }
+    setSelectedImage(fresh);
+    setNearbyGroup(computeNearbyGroup(fresh, loadedImages));
+  };
+
+  // The one image loader. The initial load shows the spinner and resolves a deep link; a reload (admin state
+  // changed) swaps the list in place, and if it fails drops hidden photos so nothing private lingers after sign-out.
+  // Resolves true when the list was loaded.
+  const loadImages = async (signal: AbortSignal, initial: boolean): Promise<boolean> => {
+    if (!initial) {
+      try {
+        const loadedImages = await apiClient.getAllImages();
+        if (signal.aborted) return false;
+        reconcileImages(loadedImages);
+        return true;
+      } catch (err) {
+        if (signal.aborted) return false;
+        console.error('Failed to reload images:', err);
+        reconcileImages(imagesRef.current.filter(img => !img.hidden));
+        return false;
+      }
+    }
+
+    // `loading` starts true and `error` null; the initial load runs only on mount.
+    try {
+      const loadedImages = await apiClient.getAllImages();
+      if (signal.aborted) return false;
+      setImages(loadedImages);
+
+      if (rawImageId) {
+        const cleanId = extractImageId(rawImageId);
+        const image = loadedImages.find(img => img.id === cleanId);
+
+        if (!image) {
+          navigate('/', { replace: true });
+          return true;
+        }
+
+        const group = computeNearbyGroup(image, loadedImages);
+        setSelectedImage(image);
+        setNearbyGroup(group);
+
+        // Pan to image — defer via pendingPanRef if map isn't mounted yet
+        if (mapRef.current) {
+          mapRef.current.panTo([image.latitude, image.longitude]);
+        } else {
+          pendingPanRef.current = [image.latitude, image.longitude];
+        }
+      }
+      return true;
+    } catch (err) {
+      if (signal.aborted) return false;
+      console.error('Failed to load images:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load images');
+      return false;
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  };
+
   // Load images once on mount; handle deep-link if imageId is present in the URL
   useEffect(() => {
     const controller = new AbortController();
-
-    const loadImages = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const loadedImages = await apiClient.getAllImages();
-        if (controller.signal.aborted) return;
-        setImages(loadedImages);
-
-        if (rawImageId) {
-          const cleanId = extractImageId(rawImageId);
-          const image = loadedImages.find(img => img.id === cleanId);
-
-          if (!image) {
-            navigate('/', { replace: true });
-            return;
-          }
-
-          const group = computeNearbyGroup(image, loadedImages);
-          setSelectedImage(image);
-          setNearbyGroup(group);
-
-          // Pan to image — defer via pendingPanRef if map isn't mounted yet
-          if (mapRef.current) {
-            mapRef.current.panTo([image.latitude, image.longitude]);
-          } else {
-            pendingPanRef.current = [image.latitude, image.longitude];
-          }
-        }
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        console.error('Failed to load images:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load images');
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-
-    loadImages();
+    // loadImages only sets state after awaiting the fetch; the rule can't see through the async helper.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadImages(controller.signal, true);
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // runs once on mount — rawImageId is intentionally not a dep (deep-link only)
+
+  // Reload when admin state changes after the session first resolves: sign-out must drop hidden photos, and a late
+  // (silent) sign-in must bring them in. The first resolved value is only a baseline — the mount load already
+  // fetched with whatever cookie there was.
+  const resolvedAdmin = me === undefined ? undefined : !!me?.isAdmin;
+  const listAdminRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (resolvedAdmin === undefined) return;
+    if (listAdminRef.current === undefined) {
+      listAdminRef.current = resolvedAdmin;
+      return;
+    }
+    if (listAdminRef.current === resolvedAdmin) return;
+    const controller = new AbortController();
+    void loadImages(controller.signal, false).then(() => {
+      if (!controller.signal.aborted) listAdminRef.current = resolvedAdmin;
+    });
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedAdmin]); // loadImages reads the latest selection/list through refs
 
   // Track the device for the "you are here" dot.
   useEffect(() => (hasGps() ? watchPosition(setUserPosition) : undefined), []);
@@ -102,6 +169,7 @@ const MapPage: React.FC = () => {
     if (images.length === 0) return;
 
     if (!rawImageId) {
+      closedIdRef.current = null;
       // Syncing local modal state to a router-owned URL param, not deriving state from props.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedImage(null);
@@ -112,7 +180,8 @@ const MapPage: React.FC = () => {
     const cleanId = extractImageId(rawImageId);
     const image = images.find(img => img.id === cleanId);
     if (!image) {
-      navigate('/', { replace: true });
+      // A reload dropped the open photo and is already heading to /map; anything else unknown goes to the landing page.
+      if (cleanId !== closedIdRef.current) navigate('/', { replace: true });
       return;
     }
 

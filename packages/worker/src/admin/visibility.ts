@@ -103,10 +103,14 @@ async function handleVisibility(
     const name = override?.hidden === true ? override.privateName : null;
     if (name === null) return respond({ error: "Not hidden" }, 409);
     const [privateKey, privateThumb] = privateKeys(name);
+    // Restore full-size files first: if none comes back, stop before anything (even a thumbnail) is made public.
+    let restoredFull = false;
     for (const row of rows) {
-      const [full, thumb] = publicKeys(row.id);
-      await copy(bucket, privateKey, full);
-      await copy(bucket, privateThumb, thumb);
+      if (await copy(bucket, privateKey, publicKeys(row.id)[0])) restoredFull = true;
+    }
+    if (!restoredFull) return respond({ error: "Image files missing" }, 409);
+    for (const row of rows) {
+      await copy(bucket, privateThumb, publicKeys(row.id)[1]);
     }
     await setHidden(env.DB, contentHash, null, new Date().toISOString());
     await bucket.delete(privateKey);

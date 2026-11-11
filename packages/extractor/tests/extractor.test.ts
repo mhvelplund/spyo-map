@@ -397,6 +397,14 @@ describe('hidden photos', () => {
     expect(mockFetchHiddenNames).toHaveBeenCalledTimes(1);
   });
 
+  it('fails closed: rejects and writes nothing when hidden names cannot be fetched', async () => {
+    mockFetchHiddenNames.mockRejectedValue(new Error('d1 down'));
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    await expect(runExtractor(CONFIG, s3, d1)).rejects.toThrow('d1 down');
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUpsertImages).not.toHaveBeenCalled();
+  });
+
   it('writes a hidden photo (bucket source) to private keys, never images/', async () => {
     mockFetchHiddenNames.mockResolvedValue(new Map([[HASH, 'privname']]));
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);

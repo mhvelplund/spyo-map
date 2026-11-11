@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { jest } from '@jest/globals';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import type { ImageRecord } from '../../shared/src/types';
 
 interface CapturedProps {
@@ -58,15 +58,22 @@ const hiddenA: ImageRecord = {
   thumbnailUrl: 'https://img.example/private/thumbnails/f00.jpg',
 };
 
+const imageB: ImageRecord = { ...imageA, id: 'b', latitude: 50, longitude: 60 };
+
+const PathProbe = () => <div data-testid="path">{useLocation().pathname}</div>;
+
+const pageAt = (path: string) => (
+  <MemoryRouter initialEntries={[path]}>
+    <Routes>
+      <Route path="/map" element={<MapPage />} />
+      <Route path="/map/image/:imageId" element={<MapPage />} />
+    </Routes>
+    <PathProbe />
+  </MemoryRouter>
+);
+
 const renderOpenLightbox = async () => {
-  render(
-    <MemoryRouter initialEntries={['/map/image/a']}>
-      <Routes>
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/map/image/:imageId" element={<MapPage />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  render(pageAt('/map/image/a'));
   await screen.findByRole('dialog');
 };
 
@@ -98,6 +105,46 @@ describe('MapPage admin hide', () => {
     expect(screen.getByRole('button', { name: 'Unhide photo' })).toBeEnabled();
     expect(props().images).toEqual([hiddenA]);
     expect(screen.getByRole('img', { name: /Taken on/ })).toHaveAttribute('src', hiddenA.imageUrl);
+  });
+
+  it('reloads as a visitor after sign-out and closes a hidden photo', async () => {
+    asAdmin();
+    api.getAllImages.mockResolvedValueOnce([hiddenA, imageB]).mockResolvedValueOnce([imageB]);
+    const view = render(pageAt('/map/image/a'));
+    await screen.findByText('Hidden');
+    expect(api.getAllImages).toHaveBeenCalledTimes(1);
+
+    session.useSession.mockReturnValue({ me: null, signOut: async () => {} });
+    view.rerender(pageAt('/map/image/a'));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(api.getAllImages).toHaveBeenCalledTimes(2);
+    expect(props().images).toEqual([imageB]);
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/map$/);
+  });
+
+  it('reloads the admin list when the session turns admin after a visitor start', async () => {
+    session.useSession.mockReturnValue({ me: null, signOut: async () => {} });
+    api.getAllImages.mockResolvedValueOnce([imageB]).mockResolvedValueOnce([hiddenA, imageB]);
+    const view = render(pageAt('/map'));
+    await screen.findByTestId('map');
+    expect(api.getAllImages).toHaveBeenCalledTimes(1);
+
+    asAdmin();
+    view.rerender(pageAt('/map'));
+
+    await waitFor(() => expect(props().images).toEqual([hiddenA, imageB]));
+    expect(api.getAllImages).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not refetch when the session resolves after the first load', async () => {
+    session.useSession.mockReturnValue({ me: undefined, signOut: async () => {} });
+    const view = render(pageAt('/map'));
+    await screen.findByTestId('map');
+    asAdmin();
+    view.rerender(pageAt('/map'));
+    await act(async () => {});
+    expect(api.getAllImages).toHaveBeenCalledTimes(1);
   });
 
   it('shows a toast and keeps the records when hiding fails', async () => {

@@ -118,14 +118,14 @@
   }
 }
 
-/* Admin mode: markers can be long-pressed and dragged. Stop the browser (notably Android WebView) from turning a
-   long-press into text selection, an image callout or a native image drag. */
 /* Hidden photos only reach admins; grey them so they stand out from public ones. */
 .marker-hidden {
   filter: grayscale(1);
   opacity: 0.6;
 }
 
+/* Admin mode: markers can be long-pressed and dragged. Stop the browser (notably Android WebView) from turning a
+   long-press into text selection, an image callout or a native image drag. */
 .map-admin .leaflet-marker-icon {
   user-select: none;
   -webkit-user-select: none;

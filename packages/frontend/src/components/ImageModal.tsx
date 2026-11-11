@@ -274,11 +274,13 @@ const ImageModal: React.FC<LightboxProps> = ({
               </div>
             )}
 
-            {/* Social sharing */}
-            <SocialShare
-              imageUrl={`/#/image/${image.id}`}
-              imageTitle={`Photo taken on ${imageDate} at ${imageTime}`}
-            />
+            {/* Social sharing — a hidden photo has no public link to share */}
+            {!image.hidden && (
+              <SocialShare
+                imageUrl={`/#/image/${image.id}`}
+                imageTitle={`Photo taken on ${imageDate} at ${imageTime}`}
+              />
+            )}
 
             {adminActions && <div className="image-admin-actions">{adminActions}</div>}
           </div>
