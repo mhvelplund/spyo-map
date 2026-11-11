@@ -216,6 +216,10 @@ Once its metadata is committed to D1, the extractor moves each `raw/` object, by
 [Re-ingesting from originals](#re-ingesting-from-originals)). If the move fails, the object stays in `raw/`, and the
 next run moves it without processing it again.
 
+**Ingest Photos** runs every hour at :17 (and on demand), so new uploads reach the map within the hour. GitHub pauses
+scheduled workflows in a public repository after 60 days without repository activity. If that happens, re-enable it
+from the Actions tab.
+
 ### `failed/`
 
 The extractor moves an object from `raw/` to `failed/` (same file name) when it can never succeed as it stands:

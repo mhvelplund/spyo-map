@@ -50,7 +50,7 @@ npm workspaces monorepo, five runtime packages plus a smoke-test package:
   the `ASSETS` binding and answers `/api/*` from the `DB` (D1) binding via `src/services/database.ts`. Never proxies
   image bytes; constructs `imageUrl`/`thumbnailUrl` from the `IMAGES_BASE_URL` var. Config lives in `wrangler.toml`; the
   D1 schema lives in `migrations/`.
-- **`packages/extractor`** — One-shot CLI ingestion job, run by GitHub Actions. Reads photos from `raw/` in R2
+- **`packages/extractor`** — One-shot CLI ingestion job, run hourly by GitHub Actions. Reads photos from `raw/` in R2
   (or `originals/` with `SOURCE_PREFIX=originals/` to re-ingest after a wipe) or a local folder (`LOCAL_SOURCE_PATH`),
   extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads to `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
 - **`packages/admin`** — Admin CLI (`npm run uploaders|uploads|images`, add `--remote` for production) that manages the

@@ -9,11 +9,16 @@ on:
         options: [raw, originals]
         default: raw
   schedule:
-    # Sundays at 03:00 UTC
-    - cron: '0 3 * * 0'
+    # Hourly, off the top of the hour to dodge GitHub's scheduling backlog. Free: the repo is public.
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
+
+# Never let a slow run overlap the next one; queue it instead of cancelling.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
 
 jobs:
   ingest:

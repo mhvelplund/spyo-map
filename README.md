@@ -143,7 +143,7 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 ## Production deployment
 
 Deploys run from GitHub Actions on push to `main` (`.github/workflows/deploy.yml`): install, lint, test, build the
-frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on demand (`.github/workflows/ingest.yml`). See
+frontend, then `wrangler deploy`. Photo ingestion runs hourly and on demand (`.github/workflows/ingest.yml`). See
 `docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and GitHub
 repository secrets).
 
