@@ -147,16 +147,16 @@ async function idTokenSignIn(request: Request, env: Env, fetchFn: typeof fetch):
   if (!email) return json({ error: "Invalid token" }, 401);
 
   let token: string;
-  let displayName: string;
+  let me: MeResponse;
   try {
     const uploader = await findActiveUploaderByEmail(env.DB, email);
     if (!uploader) return json({ error: "Not allowed" }, 403);
-    displayName = uploader.displayName;
+    me = { displayName: uploader.displayName, isAdmin: uploader.isAdmin };
     token = await signSession({ uploaderId: uploader.id, exp: nowSec + SESSION_TTL_SECONDS }, env.SESSION_SECRET);
   } catch {
     return json({ error: "Sign-in failed" }, 500);
   }
-  const res = json({ displayName } satisfies MeResponse, 200);
+  const res = json(me, 200);
   res.headers.append(
     "set-cookie",
     serializeCookie(SESSION_COOKIE, token, { maxAge: SESSION_TTL_SECONDS, path: "/", httpOnly: true }),

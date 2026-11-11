@@ -30,6 +30,7 @@ export type UploadOutcome =
 
 export interface MeResponse {
   displayName: string;
+  isAdmin: boolean;
 }
 
 /** Body of POST /auth/google/idtoken: a Google ID token obtained by the mobile app's native sign-in. */

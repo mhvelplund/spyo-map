@@ -22,7 +22,7 @@ async function handleMe(request: Request, env: Env): Promise<Response> {
   const noStore = { "cache-control": "no-store" };
   const uploader = await currentUploader(request, env);
   if (!uploader) return json({ error: "Not signed in" }, 401, noStore);
-  const body: MeResponse = { displayName: uploader.displayName };
+  const body: MeResponse = { displayName: uploader.displayName, isAdmin: uploader.isAdmin };
   return json(body, 200, noStore);
 }
 

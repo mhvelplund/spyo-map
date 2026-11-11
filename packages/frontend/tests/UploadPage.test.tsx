@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { jest } from '@jest/globals';
 
-const getMe = jest.fn<() => Promise<{ displayName: string } | null>>();
+const getMe = jest.fn<() => Promise<{ displayName: string; isAdmin: boolean } | null>>();
 const checkHashes = jest.fn<(h: string[]) => Promise<string[]>>();
 const uploadFile = jest.fn<(f: File, s: string) => Promise<unknown>>();
 const logout = jest.fn<() => Promise<void>>();
@@ -56,7 +56,7 @@ describe('UploadPage', () => {
   it.each([
     ['loading', () => getMe.mockReturnValue(new Promise(() => {}))],
     ['signed out', () => getMe.mockResolvedValue(null)],
-    ['signed in', () => getMe.mockResolvedValue({ displayName: 'Ann' })],
+    ['signed in', () => getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false })],
   ])('links to the map while %s', async (_state, setup) => {
     setup();
     renderAt('/upload');
@@ -83,7 +83,7 @@ describe('UploadPage', () => {
   });
 
   it('sorts a dropped batch into added, duplicates and rejected', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     const good = new File(['1'], 'good.jpg');
     const dup = new File(['2'], 'dup.jpg');
     const nogps = new File(['3'], 'nogps.jpg');
@@ -115,7 +115,7 @@ describe('UploadPage', () => {
   });
 
   it('keeps local rejection reasons when the hash check fails', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     const good = new File(['1'], 'good.jpg');
     const nogps = new File(['2'], 'nogps.jpg');
     const png = new File(['3'], 'pic.png');
@@ -149,7 +149,7 @@ describe('UploadPage', () => {
   });
 
   it('returns to sign-in when the server says signed out', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     inspectFile.mockResolvedValue({ ok: true, sha256: 'a'.repeat(64) });
     checkHashes.mockResolvedValue([]);
     const err = new Error('Signed out');
@@ -164,7 +164,7 @@ describe('UploadPage', () => {
   });
 
   it('still signs out locally when logout rejects', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     logout.mockRejectedValue(new Error('network'));
     renderAt('/upload');
     await screen.findByText('Ann');
@@ -173,7 +173,7 @@ describe('UploadPage', () => {
   });
 
   it('revokes object URLs on unmount', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     inspectFile.mockResolvedValue({ ok: true, sha256: 'a'.repeat(64) });
     checkHashes.mockResolvedValue([]);
     uploadFile.mockResolvedValue({ status: 'added' });
@@ -214,7 +214,7 @@ describe('UploadPage in the app', () => {
   it('in app, signed out shows a Sign in button, and success shows "Signed in as Ada"', async () => {
     getMe.mockResolvedValue(null);
     native.nativeSignIn.mockResolvedValue('tok');
-    signInWithIdToken.mockResolvedValue({ displayName: 'Ada' });
+    signInWithIdToken.mockResolvedValue({ displayName: 'Ada', isAdmin: false });
     renderAt('/upload');
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Google' }));
     expect(await screen.findByText('Ada')).toBeInTheDocument();
@@ -257,7 +257,7 @@ describe('UploadPage in the app', () => {
     getMe.mockResolvedValue(null);
     native.nativeHasSignedInBefore.mockResolvedValue(true);
     native.nativeSignIn.mockResolvedValue('tok');
-    signInWithIdToken.mockResolvedValue({ displayName: 'Ada' });
+    signInWithIdToken.mockResolvedValue({ displayName: 'Ada', isAdmin: false });
     renderAt('/upload');
     expect(await screen.findByText('Ada')).toBeInTheDocument();
     expect(native.nativeSignIn).toHaveBeenCalledWith(true);
@@ -282,7 +282,7 @@ describe('UploadPage in the app', () => {
   });
 
   it('in app, Choose photos uploads picked files and lists failed ones as rejected', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     native.nativePickPhotos.mockResolvedValue({ files: [new File(['1'], 'a.jpg')], failed: ['cloud.jpg'] });
     renderAt('/upload');
     await screen.findByText('Ann');
@@ -294,7 +294,7 @@ describe('UploadPage in the app', () => {
   });
 
   it('in app, shared photos are processed on sign-in and again when a photosShared event fires', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     native.nativeSharedPhotos.mockResolvedValueOnce({ files: [new File(['1'], 'first.jpg')], failed: [] });
     renderAt('/upload');
     expect((await added()).getByText('first.jpg')).toBeInTheDocument();
@@ -305,7 +305,7 @@ describe('UploadPage in the app', () => {
   });
 
   it('in app, the share listener is removed on unmount', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     const { unmount } = renderAt('/upload');
     await screen.findByText('Ann');
     await waitFor(() => expect(native.onNativeShare).toHaveBeenCalled());
@@ -314,7 +314,7 @@ describe('UploadPage in the app', () => {
   });
 
   it('in app, a no-GPS rejection shows the in-app copy', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     inspectFile.mockResolvedValue({ ok: false, reason: NOGPS });
     native.nativeSharedPhotos.mockResolvedValueOnce({ files: [new File(['1'], 'shared.jpg')], failed: [] });
     renderAt('/upload');
@@ -324,7 +324,7 @@ describe('UploadPage in the app', () => {
   });
 
   it('in app, log out calls nativeSignOut', async () => {
-    getMe.mockResolvedValue({ displayName: 'Ann' });
+    getMe.mockResolvedValue({ displayName: 'Ann', isAdmin: false });
     logout.mockResolvedValue();
     renderAt('/upload');
     await screen.findByText('Ann');

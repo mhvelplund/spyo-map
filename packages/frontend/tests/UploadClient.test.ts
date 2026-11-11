@@ -53,8 +53,8 @@ describe('UploadClient.signInWithIdToken', () => {
     fetchSpy.mockResolvedValue({ status, ok: status >= 200 && status < 300, json: () => Promise.resolve(body) } as unknown as Response);
 
   it('POSTs {idToken} same-origin to /auth/google/idtoken and returns the MeResponse on 200', async () => {
-    respond(200, { displayName: 'Ada' });
-    expect(await new UploadClient().signInWithIdToken('tok')).toEqual({ displayName: 'Ada' });
+    respond(200, { displayName: 'Ada', isAdmin: false });
+    expect(await new UploadClient().signInWithIdToken('tok')).toEqual({ displayName: 'Ada', isAdmin: false });
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/auth/google/idtoken');
     expect(init.method).toBe('POST');

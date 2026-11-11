@@ -169,13 +169,20 @@ describe('GET /api/me', () => {
   });
 
   it('returns the display name for a valid session of an active uploader', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
     const res = await handleApiRequest(me(`spyo_session=${token}`), env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ displayName: 'MH' });
+    expect(await res.json()).toEqual({ displayName: 'MH', isAdmin: true });
     expect(mockFindUploaderById).toHaveBeenCalledWith(DB, 1);
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('returns isAdmin false for a non-admin uploader', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 2, displayName: 'Bob', isAdmin: false });
+    const token = await signSession({ uploaderId: 2, exp: nowSec() + 60 }, SECRET);
+    const res = await handleApiRequest(me(`spyo_session=${token}`), env);
+    expect(await res.json()).toEqual({ displayName: 'Bob', isAdmin: false });
   });
 
   it('returns 401 for a disabled uploader', async () => {
@@ -186,7 +193,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 for an expired or forged session', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const expired = await signSession({ uploaderId: 1, exp: nowSec() - 1 }, SECRET);
     expect((await handleApiRequest(me(`spyo_session=${expired}`), env)).status).toBe(401);
     const forged = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, 'wrong-session-secret-0123456789abcdef');
@@ -195,7 +202,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 when the session secret is shorter than 32 characters', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     // A token genuinely HMAC-signed with the short key, bypassing signSession's guard.
     const short = 'x'.repeat(31);
     const key = await crypto.subtle.importKey(
@@ -220,7 +227,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 when the session secret is not configured', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
     const res = await handleApiRequest(me(`spyo_session=${token}`), {
       ...(env as object),
