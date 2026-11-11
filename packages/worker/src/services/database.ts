@@ -194,3 +194,107 @@ export async function queryImagesByContentHash(
     .all<Record<string, unknown>>();
   return results.map((row) => rowToRecord(row, baseUrl));
 }
+
+export interface GroupState {
+  groupId: string | null;
+  groupedAt: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+/** Group fields and effective position (override else EXIF of the first row) of a content hash; null if no row. */
+export async function findGroupState(db: D1Database, contentHash: string): Promise<GroupState | null> {
+  const row = await db
+    .prepare(
+      "SELECT COALESCE(o.latitude, images.latitude) AS lat, COALESCE(o.longitude, images.longitude) AS lon, o.group_id AS group_id, o.grouped_at AS grouped_at FROM images LEFT JOIN image_overrides o ON o.content_hash = images.content_hash WHERE images.content_hash = ? ORDER BY images.id LIMIT 1",
+    )
+    .bind(contentHash)
+    .first<{ lat: number; lon: number; group_id: string | null; grouped_at: string | null }>();
+  return row
+    ? { groupId: row.group_id, groupedAt: row.grouped_at, latitude: row.lat, longitude: row.lon }
+    : null;
+}
+
+/** Content hashes in a group with their effective positions. */
+export async function findGroupMembers(
+  db: D1Database,
+  groupId: string,
+): Promise<Array<{ contentHash: string; latitude: number; longitude: number }>> {
+  const { results } = await db
+    .prepare(
+      "SELECT o.content_hash AS content_hash, COALESCE(o.latitude, (SELECT latitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lat, COALESCE(o.longitude, (SELECT longitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lon FROM image_overrides o WHERE o.group_id = ? ORDER BY o.content_hash",
+    )
+    .bind(groupId)
+    .all<{ content_hash: string; lat: number; lon: number }>();
+  return results.map((r) => ({ contentHash: r.content_hash, latitude: r.lat, longitude: r.lon }));
+}
+
+export interface GroupWrite {
+  contentHash: string;
+  latitude: number;
+  longitude: number;
+  groupId: string;
+  groupedAt: string;
+  preGroupLatitude: number;
+  preGroupLongitude: number;
+}
+
+/** Upsert group membership for every row in one batch (a transaction). */
+export async function writeGroup(db: D1Database, rows: GroupWrite[], now: string): Promise<void> {
+  await db.batch(
+    rows.map((r) =>
+      db
+        .prepare(
+          "INSERT INTO image_overrides (content_hash, latitude, longitude, updated_at, group_id, grouped_at, pre_group_latitude, pre_group_longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at, group_id = excluded.group_id, grouped_at = excluded.grouped_at, pre_group_latitude = excluded.pre_group_latitude, pre_group_longitude = excluded.pre_group_longitude",
+        )
+        .bind(
+          r.contentHash,
+          r.latitude,
+          r.longitude,
+          now,
+          r.groupId,
+          r.groupedAt,
+          r.preGroupLatitude,
+          r.preGroupLongitude,
+        ),
+    ),
+  );
+}
+
+/**
+ * Remove a hash from its group in one batch: it returns to its pre-group position when one is recorded (a group move
+ * clears it). `dissolveHash` is the last remaining member, which leaves the group in place.
+ */
+export async function writeUngroup(
+  db: D1Database,
+  contentHash: string,
+  dissolveHash: string | null,
+  now: string,
+): Promise<void> {
+  const leave = (restore: boolean) =>
+    `UPDATE image_overrides SET ${
+      restore
+        ? "latitude = CASE WHEN pre_group_latitude IS NOT NULL AND pre_group_longitude IS NOT NULL THEN pre_group_latitude ELSE latitude END, longitude = CASE WHEN pre_group_latitude IS NOT NULL AND pre_group_longitude IS NOT NULL THEN pre_group_longitude ELSE longitude END, "
+        : ""
+    }group_id = NULL, grouped_at = NULL, pre_group_latitude = NULL, pre_group_longitude = NULL, updated_at = ? WHERE content_hash = ?`;
+  await db.batch([
+    db.prepare(leave(true)).bind(now, contentHash),
+    ...(dissolveHash === null ? [] : [db.prepare(leave(false)).bind(now, dissolveHash)]),
+  ]);
+}
+
+export async function queryImagesByContentHashes(
+  db: D1Database,
+  contentHashes: string[],
+  baseUrl: string,
+  viewer: Viewer,
+): Promise<ImageRecord[]> {
+  if (contentHashes.length === 0) return [];
+  const { results } = await db
+    .prepare(
+      `${IMAGE_SELECT} WHERE images.content_hash IN (${contentHashes.map(() => "?").join(", ")})${visibility(viewer)}`,
+    )
+    .bind(...contentHashes)
+    .all<Record<string, unknown>>();
+  return results.map((row) => rowToRecord(row, baseUrl));
+}

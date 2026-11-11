@@ -3,6 +3,7 @@ import type { Env } from "./env.js";
 import { handleUploadCheck, handleUploadPut } from "./uploads/handlers.js";
 import { handleSetLocation } from "./admin/location.js";
 import { handleHide, handleUnhide } from "./admin/visibility.js";
+import { handleGroup, handleUngroup } from "./admin/groups.js";
 import { currentUploader } from "./auth/currentUploader.js";
 import {
   queryAllImages,
@@ -17,6 +18,14 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
   });
 }
+
+type AdminAction = (request: Request, env: Env, id: string) => Promise<Response>;
+const POST_ACTIONS = new Map<string, AdminAction>([
+  ["hide", handleHide],
+  ["unhide", handleUnhide],
+  ["group", handleGroup],
+  ["ungroup", handleUngroup],
+]);
 
 const notFound = (): Response => json({ error: "Not found" }, 404);
 const methodNotAllowed = (): Response => json({ error: "Method not allowed" }, 405);
@@ -61,7 +70,8 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
   }
 
   if (resource !== "images") return notFound();
-  // Every /api/images route is read-only except PUT /api/images/:id/location and POST /api/images/:id/(hide|unhide).
+  // Every /api/images route is read-only except PUT /api/images/:id/location and
+  // POST /api/images/:id/(hide|unhide|group|ungroup).
   if (segments.length === 4 && action === "location" && rawId !== undefined) {
     if (request.method !== "PUT") return methodNotAllowed();
     let id = rawId;
@@ -72,7 +82,8 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
     }
     return handleSetLocation(request, env, id);
   }
-  if (segments.length === 4 && (action === "hide" || action === "unhide") && rawId !== undefined) {
+  const postAction = action === undefined ? undefined : POST_ACTIONS.get(action);
+  if (segments.length === 4 && postAction !== undefined && rawId !== undefined) {
     if (request.method !== "POST") return methodNotAllowed();
     let id = rawId;
     try {
@@ -80,7 +91,7 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
     } catch {
       // keep rawId; lookup will 404
     }
-    return action === "hide" ? handleHide(request, env, id) : handleUnhide(request, env, id);
+    return postAction(request, env, id);
   }
   if (!isGet) return methodNotAllowed();
 
