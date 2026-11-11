@@ -326,6 +326,8 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 0;
+  /* The page must not zoom or scroll under the gesture; useZoomPan handles pinch and pan. */
+  touch-action: none;
 }
 
 .image-modal-overlay.expanded .modal-image {
@@ -334,7 +336,19 @@
   width: auto;
   height: auto;
   object-fit: contain;
-  cursor: pointer;
+  cursor: zoom-in;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.image-modal-overlay.expanded .modal-image.zoomed {
+  cursor: grab;
+}
+
+/* Follow the fingers exactly while pinching or panning; animate only discrete jumps (double tap, reset). */
+.image-modal-overlay.expanded .modal-image.gesturing {
+  cursor: grabbing;
+  transition: none;
 }
 
 /* Prevent metadata from squeezing image on very short screens (e.g. iPhone SE portrait) */

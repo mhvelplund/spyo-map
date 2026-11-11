@@ -50,21 +50,25 @@ npm workspaces monorepo, five runtime packages plus a smoke-test package:
   the `ASSETS` binding and answers `/api/*` from the `DB` (D1) binding via `src/services/database.ts`. Never proxies
   image bytes; constructs `imageUrl`/`thumbnailUrl` from the `IMAGES_BASE_URL` var. Config lives in `wrangler.toml`; the
   D1 schema lives in `migrations/`.
-- **`packages/extractor`** — One-shot CLI ingestion job, run by GitHub Actions. Reads photos from `raw/` in R2 or a
-  local folder (`LOCAL_SOURCE_PATH`), extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads
-  to `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
+- **`packages/extractor`** — One-shot CLI ingestion job, run hourly by GitHub Actions. Reads photos from `raw/` in the
+  private bucket (or `originals/` with `SOURCE_PREFIX=originals/` to re-ingest after a wipe) or a local folder
+  (`LOCAL_SOURCE_PATH`), extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads to the
+  public bucket's `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
 - **`packages/admin`** — Admin CLI (`npm run uploaders|uploads|images`, add `--remote` for production) that manages the
   upload allow-list and removes images via wrangler D1/R2 commands.
 - **`packages/smoke-test`** — standalone Jest package, no source, just tests. Runs against a deployed `SMOKE_BASE_URL`
   and skips when that is unset.
 
-R2 bucket layout:
+R2 bucket layout (two buckets; unprocessed photos keep full EXIF, so they must never be publicly reachable):
 ```
-spyo-map/
-├── raw/                 ← upload source photos here (private; deleted after ingest)
-├── failed/              ← objects the extractor rejected (private; retry or delete)
-├── images/              ← processed full-size (public via spyo-img.isntall.net)
-│   └── thumbnails/      ← thumbnails (public)
+spyo-map/                ← PUBLIC via spyo-img.isntall.net (custom domain serves the whole bucket)
+├── images/              ← processed full-size
+│   └── thumbnails/      ← thumbnails
+
+spyo-map-private/        ← NO custom domain, NO r2.dev; Worker `BUCKET` binding + extractor only
+├── raw/                 ← uploads land here; moved to originals/ after ingest
+├── originals/           ← untouched ingested originals (source for re-ingest)
+├── failed/              ← objects the extractor rejected (retry or delete)
 ```
 
 ### Frontend routing/component flow

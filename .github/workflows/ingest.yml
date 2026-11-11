@@ -2,12 +2,23 @@ name: Ingest Photos
 
 on:
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Prefix to ingest from: raw (new uploads) or originals (re-ingest after a wipe)'
+        type: choice
+        options: [raw, originals]
+        default: raw
   schedule:
-    # Sundays at 03:00 UTC
-    - cron: '0 3 * * 0'
+    # Hourly, off the top of the hour to dodge GitHub's scheduling backlog. Free: the repo is public.
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
+
+# Never let a slow run overlap the next one; queue it instead of cancelling.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
 
 jobs:
   ingest:
@@ -32,10 +43,13 @@ jobs:
         env:
           STORAGE_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           STORAGE_BUCKET: spyo-map
+          STORAGE_PRIVATE_BUCKET: spyo-map-private
           STORAGE_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
           STORAGE_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           STORAGE_REGION: auto
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          # Scheduled runs have no inputs and fall back to raw/.
+          SOURCE_PREFIX: ${{ inputs.source || 'raw' }}
         run: npm start --workspace=packages/extractor

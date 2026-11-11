@@ -11,7 +11,6 @@ import {
 } from "./d1.js";
 import { extractExif, processImage } from "./processor.js";
 import {
-  deleteObject,
   getObjectWithMetadata,
   listObjects,
   moveObject,
@@ -26,6 +25,15 @@ function sha256Hex(buffer: Buffer): string {
 
 function failedKey(key: string): string {
   return key.startsWith("raw/") ? `failed/${key.slice(4)}` : `failed/${key}`;
+}
+
+function originalsKey(key: string): string {
+  return key.startsWith("raw/") ? `originals/${key.slice(4)}` : `originals/${key}`;
+}
+
+/** The object's key as it was (or would have been) under raw/, so ids are stable across re-ingest. */
+function canonicalRawKey(key: string, prefix: string): string {
+  return key.startsWith(prefix) ? `raw/${key.slice(prefix.length)}` : key;
 }
 
 function originalName(metadata: Record<string, string>, key: string): string {
@@ -88,24 +96,34 @@ export async function runExtractor(
     return;
   }
 
-  const { rows, keysToDelete, keysToFail } = await processBucketSource(config, s3, existingIds);
+  const { rows, keysToArchive, keysToFail } = await processBucketSource(config, s3, existingIds);
 
-  // Commit metadata before deleting anything, so a failure never loses a photo.
+  // Commit metadata before moving anything, so a failure never loses a photo.
   await upsertImages(d1, rows);
   console.log(`Wrote ${rows.length} new row(s) to D1.`);
 
-  for (const key of keysToDelete) {
+  if (config.sourcePrefix === "originals/") {
+    // Re-ingest: originals stay exactly where they are.
+    if (keysToFail.length > 0) {
+      console.warn(`Could not re-ingest ${keysToFail.length} original(s): ${keysToFail.join(", ")}`);
+    }
+    console.log("Extractor complete.");
+    return;
+  }
+
+  for (const key of keysToArchive) {
     try {
-      await deleteObject(s3, config.storageBucket, key);
-      console.log(`Deleted raw file: ${key}`);
+      await moveObject(s3, config.storagePrivateBucket, key, originalsKey(key));
+      console.log(`Moved to originals/: ${key}`);
     } catch (err) {
-      console.warn(`Warning: could not delete ${key} from raw/:`, err);
+      // Left in raw/; the next run sees it as already processed and retries the move.
+      console.warn(`Warning: could not move ${key} to originals/:`, err);
     }
   }
 
   for (const key of keysToFail) {
     try {
-      await moveObject(s3, config.storageBucket, key, failedKey(key));
+      await moveObject(s3, config.storagePrivateBucket, key, failedKey(key));
       console.log(`Moved to failed/: ${key}`);
     } catch (err) {
       console.warn(`Warning: could not move ${key} to failed/:`, err);
@@ -180,35 +198,36 @@ async function processBucketSource(
   config: Config,
   s3: S3Client,
   existingIds: Set<string>,
-): Promise<{ rows: ImageInsert[]; keysToDelete: string[]; keysToFail: string[] }> {
-  console.log(`Scanning bucket ${config.storageBucket}/raw/ ...`);
-  const objects = await listObjects(s3, config.storageBucket, "raw/");
+): Promise<{ rows: ImageInsert[]; keysToArchive: string[]; keysToFail: string[] }> {
+  const prefix = config.sourcePrefix;
+  console.log(`Scanning bucket ${config.storagePrivateBucket}/${prefix} ...`);
+  const objects = await listObjects(s3, config.storagePrivateBucket, prefix);
   const imageObjects = objects.filter((o) => {
     const lower = o.key.toLowerCase();
     return SUPPORTED_EXTENSIONS.has(lower.slice(lower.lastIndexOf(".")));
   });
-  console.log(`Found ${imageObjects.length} image(s) in raw/.`);
+  console.log(`Found ${imageObjects.length} image(s) in ${prefix}.`);
 
   const rows: ImageInsert[] = [];
-  const keysToDelete: string[] = [];
+  const keysToArchive: string[] = [];
   const keysToFail: string[] = [];
   let skipped = 0;
 
   for (let i = 0; i < imageObjects.length; i++) {
     const obj = imageObjects[i]!;
-    const id = generateIdFromS3(obj.key, obj.etag);
+    const id = generateIdFromS3(canonicalRawKey(obj.key, prefix), obj.etag);
 
     console.log(`Processing ${i + 1}/${imageObjects.length}: ${obj.key}`);
 
     if (existingIds.has(id)) {
       console.log(`  Skipping (already processed).`);
       skipped++;
-      keysToDelete.push(obj.key);
+      keysToArchive.push(obj.key);
       continue;
     }
 
     try {
-      const downloaded = await getObjectWithMetadata(s3, config.storageBucket, obj.key);
+      const downloaded = await getObjectWithMetadata(s3, config.storagePrivateBucket, obj.key);
       if (!downloaded) {
         console.warn(`  Warning: could not download ${obj.key} — skipping.`);
         continue;
@@ -261,13 +280,13 @@ async function processBucketSource(
         uploaderId,
         contentHash,
       });
-      keysToDelete.push(obj.key);
+      keysToArchive.push(obj.key);
     } catch (err) {
-      // Transient (download/upload) error: leave the object in raw/ for the next run.
-      console.error(`  Error handling ${obj.key}; leaving it in raw/:`, err);
+      // Transient (download/upload) error: leave the object in place for the next run.
+      console.error(`  Error handling ${obj.key}; leaving it in ${prefix}:`, err);
     }
   }
 
   console.log(`Done: ${rows.length} processed, ${skipped} skipped.`);
-  return { rows, keysToDelete, keysToFail };
+  return { rows, keysToArchive, keysToFail };
 }

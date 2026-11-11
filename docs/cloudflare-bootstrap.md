@@ -35,11 +35,16 @@ partial (subdomain) zone delegation, not a full nameserver switch:
 
    Expect the two Cloudflare nameservers in the answer.
 
-## 1. Create the R2 bucket
+## 1. Create the R2 buckets
 
 ```bash
 npx wrangler r2 bucket create spyo-map
+npx wrangler r2 bucket create spyo-map-private
 ```
+
+- `spyo-map` is **public** and holds only processed images (`images/`, `images/thumbnails/`).
+- `spyo-map-private` holds `raw/`, `failed/` and `originals/`: untouched photos with their full EXIF. **Never attach a
+  custom domain to it or enable its `r2.dev` subdomain.** Only the Worker binding and the extractor's API token reach it.
 
 ## 2. Attach the images custom domain
 
@@ -55,6 +60,9 @@ curl -I https://spyo-img.isntall.net/images/thumbnails/anything.jpg
 ```
 
 Expect 404 (the bucket is empty) rather than a TLS or DNS error.
+
+A custom domain serves every object in its bucket. That is why unprocessed photos live in `spyo-map-private`, which has
+no domain at all.
 
 ## 3. Create the D1 database
 
@@ -83,7 +91,7 @@ Expect a row for `images`.
 ## 5. Create R2 S3-compatible credentials
 
 Dashboard: **R2 → Manage R2 API Tokens → Create API token**. Permission **Object Read & Write**, scoped to the
-`spyo-map` bucket only.
+`spyo-map` and `spyo-map-private` buckets only.
 
 Record the Access Key ID, the Secret Access Key, and the S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
 The secret is shown once.
@@ -191,17 +199,24 @@ npm run images -- remove <imageId> --remote
 ## Uploading photos
 
 Sign in at `https://spyo-map.isntall.net/#/upload` with an allow-listed Google account and drop JPEG or TIFF photos
-(up to 50 MB each). The Worker writes them to `raw/` in R2 with the uploader and a SHA-256 as object metadata; then run
+(up to 50 MB each). The Worker writes them to `raw/` in the private bucket with the uploader and a SHA-256 as object metadata; then run
 the **Ingest Photos** workflow to process them onto the map.
 
 The manual route stays as a fallback (rclone, the dashboard, or wrangler). Objects without metadata are attributed to
 uploader 1:
 
 ```bash
-npx wrangler r2 object put spyo-map/raw/IMG_1234.jpg --file ./IMG_1234.jpg --remote
+npx wrangler r2 object put spyo-map-private/raw/IMG_1234.jpg --file ./IMG_1234.jpg --remote
 ```
 
-The extractor deletes each `raw/` object once its metadata is committed to D1.
+Once its metadata is committed to D1, the extractor moves each `raw/` object, byte for byte and with its metadata, to
+`originals/` (same file name, same private bucket). `originals/` is the archive that a re-ingest replays (see
+[Re-ingesting from originals](#re-ingesting-from-originals)). If the move fails, the object stays in `raw/`, and the
+next run moves it without processing it again.
+
+**Ingest Photos** runs every hour at :17 (and on demand), so new uploads reach the map within the hour. GitHub pauses
+scheduled workflows in a public repository after 60 days without repository activity. If that happens, re-enable it
+from the Actions tab.
 
 ### `failed/`
 
@@ -226,7 +241,8 @@ release; no result has been recorded yet.
 ## Release reset
 
 Run once, on **PRODUCTION**, to start the public site from an empty gallery. **This wipes the D1 `images` and `uploads`
-tables and every R2 object under `raw/`, `failed/` and `images/`. It is irreversible.** Uploaders are kept.
+tables, every `images/` object in `spyo-map` and every `raw/` and `failed/` object in `spyo-map-private`. It is
+irreversible.** Uploaders and `originals/` are kept.
 
 1. Clear the tables:
 
@@ -234,10 +250,27 @@ tables and every R2 object under `raw/`, `failed/` and `images/`. It is irrevers
    npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "DELETE FROM images; DELETE FROM uploads;"
    ```
 
-2. Delete everything under `raw/`, `failed/` and `images/` with `npx wrangler r2 object delete --remote
-   spyo-map/<key>` per object, or use the dashboard bulk delete (**R2 → spyo-map → Objects**).
+2. Delete everything under `images/` in `spyo-map` and under `raw/` and `failed/` in `spyo-map-private`, with
+   `npx wrangler r2 object delete --remote <bucket>/<key>` per object or the dashboard bulk delete
+   (**R2 → <bucket> → Objects**).
 3. Re-upload through `/#/upload`.
 4. Run the **Ingest Photos** workflow.
+
+## Re-ingesting from originals
+
+To rebuild the gallery after a wipe, without uploading again:
+
+1. Clear the image rows and the processed images:
+
+   ```bash
+   npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "DELETE FROM images;"
+   ```
+
+   Delete everything under `images/` in the dashboard (**R2 → spyo-map → Objects**). Leave `originals/` in `spyo-map-private` alone.
+2. Run **Ingest Photos** manually with **source = originals**.
+
+In this mode the extractor reads `spyo-map-private/originals/` and never moves or deletes anything there. Failures are only logged. Each
+original gets the same image id it had when first ingested from `raw/`, so shared `/#/image/<id>` links keep working.
 
 ## Release checklist
 

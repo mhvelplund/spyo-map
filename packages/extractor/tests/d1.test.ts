@@ -12,10 +12,12 @@ import type { ExifData } from '../src/processor.js';
 const CONFIG: Config = {
   storageEndpoint: 'https://acct.r2.cloudflarestorage.com',
   storageBucket: 'spyo-map',
+  storagePrivateBucket: 'spyo-map-private',
   storageAccessKey: 'key',
   storageSecretKey: 'secret',
   storageRegion: 'auto',
   localSourcePath: undefined,
+  sourcePrefix: 'raw/',
   cloudflareAccountId: 'acct123',
   cloudflareApiToken: 'token123',
   d1DatabaseId: 'db123',

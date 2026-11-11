@@ -3,5 +3,10 @@ node = "lts"
 pre-commit = "latest"
 go = "latest"
 gh = "latest"
+rclone = "1.76.0"
 "go:github.com/mhvelplund/git-stack/cmd/git-stack" = "latest"
 "go:github.com/mhvelplund/git-stack/cmd/git-stack-github" = "latest"
+
+[env]
+# Local-only secrets (gitignored), e.g. the RCLONE_CONFIG_R2_* credentials used by the reupload runbook.
+_.file = { path = ".env", redact = true }

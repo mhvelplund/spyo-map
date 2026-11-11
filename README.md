@@ -48,7 +48,6 @@ Browser (React + Leaflet)
   ├─ GET /api/images  ──▶  Cloudflare Worker  ──▶  D1 (spyo-map)
   │
   └─ <img src="...">  ──▶  R2 (spyo-img.isntall.net, direct, no proxy)
-                              ├── raw/          ← drop photos here
                               ├── images/       ← processed full-size
                               └── thumbnails/
 ```
@@ -129,7 +128,8 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 | Name                    | Required | Description                                     |
 |-------------------------|----------|-------------------------------------------------|
 | `STORAGE_ENDPOINT`      | yes      | `https://<account-id>.r2.cloudflarestorage.com` |
-| `STORAGE_BUCKET`        | yes      | `spyo-map`                                      |
+| `STORAGE_BUCKET`        | yes      | `spyo-map` (public; processed images)           |
+| `STORAGE_PRIVATE_BUCKET`| yes      | `spyo-map-private` (raw/, failed/, originals/)  |
 | `STORAGE_ACCESS_KEY`    | yes      | R2 API token access key id                      |
 | `STORAGE_SECRET_KEY`    | yes      | R2 API token secret                             |
 | `STORAGE_REGION`        | no       | Defaults to `auto`                              |
@@ -137,15 +137,17 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 | `CLOUDFLARE_API_TOKEN`  | yes      | Token with D1 Edit                              |
 | `D1_DATABASE_ID`        | yes      | Database id from `wrangler d1 create`           |
 | `LOCAL_SOURCE_PATH`     | no       | Ingest from a local folder instead of `raw/`    |
+| `SOURCE_PREFIX`         | no       | `raw/` (default) or `originals/` to re-ingest   |
 
 ## Production deployment
 
 Deploys run from GitHub Actions on push to `main` (`.github/workflows/deploy.yml`): install, lint, test, build the
-frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on demand (`.github/workflows/ingest.yml`). See
+frontend, then `wrangler deploy`. Photo ingestion runs hourly and on demand (`.github/workflows/ingest.yml`). See
 `docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and GitHub
 repository secrets).
 
-The `raw/` prefix should remain private; only `images/` and `images/thumbnails/` need public read.
+Unprocessed photos (`raw/`, `failed/`, `originals/`) live in a separate `spyo-map-private` bucket with no public
+domain, because they keep their full EXIF. Only the `spyo-map` bucket (`images/`, `images/thumbnails/`) is public.
 
 ## API
 
