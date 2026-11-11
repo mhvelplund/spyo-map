@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { jest } from '@jest/globals';
 import type { ImageRecord } from '../../shared/src/types';
@@ -277,12 +277,11 @@ describe('ImageModal - Expansion', () => {
     );
     const img = screen.getByRole('img');
     await user.click(img); // Expand
-    let modal = screen.getByRole('dialog');
-    expect(modal).toHaveClass('expanded');
+    expect(screen.getByRole('dialog')).toHaveClass('expanded');
 
-    await user.click(img); // Collapse
-    modal = screen.getByRole('dialog');
-    expect(modal).not.toHaveClass('expanded');
+    // Collapse waits out the double-tap window, so a double tap can zoom instead.
+    await user.click(img);
+    await waitFor(() => expect(screen.getByRole('dialog')).not.toHaveClass('expanded'));
   });
 
   it('should allow arrow key navigation while expanded', async () => {

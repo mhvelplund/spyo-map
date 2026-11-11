@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ImageModalProps } from '../types';
+import { useZoomPan } from '../hooks/useZoomPan';
+import { toTransform } from '../utils/zoom';
 import './ImageModal.css';
 import SocialShare from './SocialShare';
 
@@ -14,9 +16,21 @@ const ImageModal: React.FC<ImageModalProps> = ({
 }) => {
   const modalTitleId = useId();
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  // Set once a touch gesture has used more than one finger (a pinch), so it never counts as a swipe.
+  const multiTouchRef = useRef(false);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Pinch/double-tap/wheel zoom, only in the expanded view. A single tap there collapses it.
+  const zoom = useZoomPan({
+    enabled: isOpen && isExpanded,
+    resetKey: image?.id,
+    containerRef: imageContainerRef,
+    contentRef: imageRef,
+    onSingleTap: () => setIsExpanded(false),
+  });
 
   // Handle escape key press
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
@@ -75,7 +89,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
   };
 
   // Touch event handlers for swipe navigation
+  // Swipes only navigate at 1x with a single finger; while zoomed, dragging pans instead.
   const handleTouchStart = (event: React.TouchEvent) => {
+    if (event.touches.length > 1) multiTouchRef.current = true;
+    if (multiTouchRef.current || zoom.zoomed) {
+      setTouchStart(null);
+      setTouchEnd(null);
+      return;
+    }
     if (!nearbyImages.length || nearbyImages.length <= 1) return;
 
     const touch = event.touches[0];
@@ -84,14 +105,18 @@ const ImageModal: React.FC<ImageModalProps> = ({
   };
 
   const handleTouchMove = (event: React.TouchEvent) => {
+    if (event.touches.length > 1) multiTouchRef.current = true;
     if (!touchStart) return;
 
     const touch = event.touches[0];
     setTouchEnd({ x: touch.clientX, y: touch.clientY });
   };
 
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd || nearbyImages.length <= 1) {
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    const wasMultiTouch = multiTouchRef.current;
+    if (event.touches.length === 0) multiTouchRef.current = false;
+
+    if (!touchStart || !touchEnd || nearbyImages.length <= 1 || wasMultiTouch || zoom.zoomed) {
       setTouchStart(null);
       setTouchEnd(null);
       return;
@@ -132,8 +157,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   };
 
+  // Expands the lightbox. Collapsing is a single tap handled by useZoomPan, so it can tell taps from double taps.
   const handleImageClick = () => {
-    setIsExpanded(!isExpanded);
+    if (!isExpanded) setIsExpanded(true);
   };
 
   // Don't render if not open or no image
@@ -195,11 +221,15 @@ const ImageModal: React.FC<ImageModalProps> = ({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            {...zoom.handlers}
           >
             <img
+              ref={imageRef}
               src={image.imageUrl}
               alt={`Taken on ${imageDate} at ${imageTime}`}
-              className="modal-image"
+              className={`modal-image${zoom.gesturing ? ' gesturing' : ''}${zoom.zoomed ? ' zoomed' : ''}`}
+              style={isExpanded ? { transform: toTransform(zoom.state) } : undefined}
+              draggable={false}
               onClick={handleImageClick}
               onError={(e) => {
                 // Fallback to thumbnail if full image fails to load
