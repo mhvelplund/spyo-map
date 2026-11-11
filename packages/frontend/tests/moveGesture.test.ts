@@ -88,4 +88,31 @@ describe('moveReducer', () => {
   it('null + accept -> null', () => {
     expect(moveReducer(null, { type: 'accept' })).toBeNull();
   });
+
+  it('drop carries targetId', () => {
+    expect(moveReducer(null, { type: 'drop', imageId: 'a', from, to, targetId: 't' })).toEqual({
+      imageId: 'a',
+      from,
+      to,
+      status: 'pending',
+      targetId: 't',
+    });
+  });
+  it('same-image re-drop replaces targetId (including clearing it)', () => {
+    const withTarget: MoveState = { imageId: 'a', from, to, status: 'pending', targetId: 't' };
+    expect(moveReducer(withTarget, { type: 'drop', imageId: 'a', from: to, to: to2, targetId: 'u' })).toEqual({
+      imageId: 'a', from, to: to2, status: 'pending', targetId: 'u',
+    });
+    const cleared = moveReducer(withTarget, { type: 'drop', imageId: 'a', from: to, to: to2 });
+    expect(cleared?.targetId).toBeUndefined();
+  });
+  it('different-image drop replaces targetId', () => {
+    const withTarget: MoveState = { imageId: 'a', from, to, status: 'pending', targetId: 't' };
+    const next = moveReducer(withTarget, { type: 'drop', imageId: 'b', from, to: to2 });
+    expect(next?.targetId).toBeUndefined();
+  });
+  it('accept keeps targetId', () => {
+    const withTarget: MoveState = { imageId: 'a', from, to, status: 'pending', targetId: 't' };
+    expect(moveReducer(withTarget, { type: 'accept' })).toEqual({ ...withTarget, status: 'saving' });
+  });
 });

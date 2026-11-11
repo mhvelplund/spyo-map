@@ -56,6 +56,32 @@ export class ApiClient {
     }
     return response.json() as Promise<ImageRecord[]>;
   }
+
+  /** Admin: group an image with a target image. Returns the affected records. */
+  async groupImages(id: string, targetId: string): Promise<ImageRecord[]> {
+    const response = await fetch(`${API_BASE_URL}/api/images/${encodeURIComponent(id)}/group`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetId }),
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to group image: ${response.statusText}`);
+    }
+    return response.json() as Promise<ImageRecord[]>;
+  }
+
+  /** Admin: remove an image from its group. Returns the affected records. */
+  async ungroupImage(id: string): Promise<ImageRecord[]> {
+    const response = await fetch(`${API_BASE_URL}/api/images/${encodeURIComponent(id)}/ungroup`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to ungroup image: ${response.statusText}`);
+    }
+    return response.json() as Promise<ImageRecord[]>;
+  }
 }
 
 export const apiClient = new ApiClient();

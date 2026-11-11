@@ -38,10 +38,10 @@ export interface LatLng {
 
 export type MoveState =
   | null
-  | { imageId: string; from: LatLng; to: LatLng; status: 'pending' | 'saving' };
+  | { imageId: string; from: LatLng; to: LatLng; status: 'pending' | 'saving'; targetId?: string };
 
 export type MoveAction =
-  | { type: 'drop'; imageId: string; from: LatLng; to: LatLng }
+  | { type: 'drop'; imageId: string; from: LatLng; to: LatLng; targetId?: string }
   | { type: 'accept' }
   | { type: 'settled' }
   | { type: 'discard' };
@@ -51,9 +51,15 @@ export function moveReducer(state: MoveState, action: MoveAction): MoveState {
     case 'drop':
       if (state && state.status === 'saving') return state;
       if (state && state.imageId === action.imageId) {
-        return { ...state, to: action.to, status: 'pending' };
+        return { ...state, to: action.to, targetId: action.targetId, status: 'pending' };
       }
-      return { imageId: action.imageId, from: action.from, to: action.to, status: 'pending' };
+      return {
+        imageId: action.imageId,
+        from: action.from,
+        to: action.to,
+        status: 'pending',
+        targetId: action.targetId,
+      };
     case 'accept':
       return state && state.status === 'pending' ? { ...state, status: 'saving' } : state;
     case 'discard':
