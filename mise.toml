@@ -3,7 +3,7 @@ node = "lts"
 pre-commit = "latest"
 go = "latest"
 gh = "latest"
-rclone = "1.76.0"
+rclone = "latest"
 "go:github.com/mhvelplund/git-stack/cmd/git-stack" = "latest"
 "go:github.com/mhvelplund/git-stack/cmd/git-stack-github" = "latest"
 
