@@ -26,6 +26,9 @@ export interface ImageRecord {
   editable?: boolean;
   /** Present and true only for hidden images, which only admins receive. */
   hidden?: boolean;
+  /** Present only for grouped images: the group's id and when this image joined it. */
+  groupId?: string;
+  groupedAt?: string;
 }
 
 export interface AppState {

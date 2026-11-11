@@ -2,6 +2,8 @@ import type { Env } from "../env.js";
 import { requireAdmin } from "../auth/requireAdmin.js";
 import {
   findContentHash,
+  findGroupId,
+  queryGroupRecords,
   queryImagesByContentHash,
   setImageLocation,
 } from "../services/database.js";
@@ -39,5 +41,10 @@ export async function handleSetLocation(
   if (contentHash === null) return respond({ error: "Image cannot be edited" }, 409);
 
   await setImageLocation(env.DB, contentHash, latitude, longitude, new Date().toISOString());
-  return respond(await queryImagesByContentHash(env.DB, contentHash, env.IMAGES_BASE_URL, { isAdmin: true }), 200);
+  const viewer = { isAdmin: true };
+  const groupId = await findGroupId(env.DB, contentHash);
+  const records = groupId
+    ? await queryGroupRecords(env.DB, groupId, env.IMAGES_BASE_URL, viewer)
+    : await queryImagesByContentHash(env.DB, contentHash, env.IMAGES_BASE_URL, viewer);
+  return respond(records, 200);
 }

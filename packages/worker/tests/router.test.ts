@@ -15,6 +15,8 @@ jest.unstable_mockModule('../src/services/database.js', () => ({
   queryImagesByContentHash: jest.fn(),
   setHidden: jest.fn(),
   findOverride: jest.fn(),
+  findGroupId: jest.fn(),
+  queryGroupRecords: jest.fn(),
 }));
 
 const mockFindUploaderById = jest.fn<(db: unknown, id: number) => Promise<unknown>>();

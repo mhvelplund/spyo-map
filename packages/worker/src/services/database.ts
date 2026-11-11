@@ -5,7 +5,7 @@ import { haversineKm } from "../utils.js";
 // Effective position = admin override (keyed by content hash) else EXIF. Aliased to eff_* because
 // duplicate column names are ambiguous in D1 result objects.
 const IMAGE_SELECT =
-  "SELECT images.*, COALESCE(o.latitude, images.latitude) AS eff_latitude, COALESCE(o.longitude, images.longitude) AS eff_longitude, o.hidden AS hidden, o.private_name AS private_name, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id LEFT JOIN image_overrides o ON o.content_hash = images.content_hash";
+  "SELECT images.*, COALESCE(o.latitude, images.latitude) AS eff_latitude, COALESCE(o.longitude, images.longitude) AS eff_longitude, o.hidden AS hidden, o.private_name AS private_name, o.group_id AS group_id, o.grouped_at AS grouped_at, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id LEFT JOIN image_overrides o ON o.content_hash = images.content_hash";
 
 export interface Viewer {
   isAdmin: boolean;
@@ -24,6 +24,8 @@ export function rowToRecord(row: Record<string, unknown>, baseUrl: string): Imag
       ? `${baseUrl}/private/thumbnails/${row.private_name}.jpg`
       : `${baseUrl}/images/thumbnails/${id}.jpg`,
     ...(row.hidden === 1 ? { hidden: true } : {}),
+    ...(typeof row.group_id === "string" ? { groupId: row.group_id } : {}),
+    ...(typeof row.grouped_at === "string" ? { groupedAt: row.grouped_at } : {}),
     latitude: (row.eff_latitude ?? row.latitude) as number,
     longitude: (row.eff_longitude ?? row.longitude) as number,
     timestamp: (row.timestamp as string | null) ?? "",
@@ -113,12 +115,40 @@ export async function setImageLocation(
   longitude: number,
   now: string,
 ): Promise<void> {
-  await db
-    .prepare(
-      "INSERT INTO image_overrides (content_hash, latitude, longitude, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at",
-    )
-    .bind(contentHash, latitude, longitude, now)
-    .run();
+  // One batch (a transaction): upsert this hash, then move every override sharing its group.
+  await db.batch([
+    db
+      .prepare(
+        "INSERT INTO image_overrides (content_hash, latitude, longitude, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at",
+      )
+      .bind(contentHash, latitude, longitude, now),
+    db
+      .prepare(
+        "UPDATE image_overrides SET latitude = ?, longitude = ?, pre_group_latitude = NULL, pre_group_longitude = NULL, updated_at = ? WHERE group_id IS NOT NULL AND group_id = (SELECT group_id FROM image_overrides WHERE content_hash = ?)",
+      )
+      .bind(latitude, longitude, now, contentHash),
+  ]);
+}
+
+export async function findGroupId(db: D1Database, contentHash: string): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT group_id FROM image_overrides WHERE content_hash = ?")
+    .bind(contentHash)
+    .first<{ group_id: string | null }>();
+  return row?.group_id ?? null;
+}
+
+export async function queryGroupRecords(
+  db: D1Database,
+  groupId: string,
+  baseUrl: string,
+  viewer: Viewer,
+): Promise<ImageRecord[]> {
+  const { results } = await db
+    .prepare(`${IMAGE_SELECT} WHERE o.group_id = ?${visibility(viewer)}`)
+    .bind(groupId)
+    .all<Record<string, unknown>>();
+  return results.map((row) => rowToRecord(row, baseUrl));
 }
 
 /**
