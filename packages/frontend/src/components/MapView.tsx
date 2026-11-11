@@ -9,6 +9,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { GeoLocation, ImageRecord, MapViewProps } from '../types';
 import dotIcon from '../assets/dot.png';
 import { LONG_PRESS_MS, MOVE_TOLERANCE_PX, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
+import { collapseGroups, findDropTarget, type ScreenPoint } from '../utils/groups';
 import './MapContainer.css';
 
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.006];
@@ -22,8 +23,8 @@ interface PendingMove {
 interface AdminMoveProps {
   /** Admin mode: long-press a marker (whose image is not `editable: false`) to pick it up and drag it. */
   editable?: boolean;
-  /** A lifted marker was released at `to`. */
-  onMarkerDrop?: (imageId: string, to: LatLng) => void;
+  /** A lifted marker was released at `to`; `targetId` is the marker it was dropped onto, if any (a group request). */
+  onMarkerDrop?: (imageId: string, to: LatLng, targetId?: string) => void;
   /** That marker renders at `to`; when this goes back to null, markers return to their `images` positions. */
   pendingMove?: PendingMove | null;
   /** Click on the bare map while `pendingMove` is set. */
@@ -87,6 +88,35 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       return move?.imageId === image.id ? [move.to.lat, move.to.lng] : [image.latitude, image.longitude];
     };
 
+    if (clusterGroupRef.current) {
+      map.removeLayer(clusterGroupRef.current);
+      clusterGroupRef.current = null;
+    }
+    markersRef.current.clear();
+
+    const clusterGroup = L.markerClusterGroup();
+    clusterGroupRef.current = clusterGroup;
+
+    // Drop targets: other markers shown on their own (not inside a cluster bubble), in container pixels. Collected when
+    // a marker lifts and again only if the view changes mid-drag, so pointermove stays cheap.
+    let dropCandidates: ScreenPoint[] | null = null;
+    const invalidateCandidates = () => {
+      dropCandidates = null;
+    };
+    const candidates = (): ScreenPoint[] => {
+      if (dropCandidates) return dropCandidates;
+      const size = map.getSize();
+      dropCandidates = [];
+      for (const [id, { marker: m }] of markersRef.current) {
+        if (!m.getElement() || clusterGroup.getVisibleParent(m) !== m) continue;
+        const p = map.latLngToContainerPoint(m.getLatLng());
+        if (p.x < 0 || p.y < 0 || p.x > size.x || p.y > size.y) continue;
+        dropCandidates.push({ id, x: p.x, y: p.y });
+      }
+      return dropCandidates;
+    };
+    map.on('zoomend moveend', invalidateCandidates);
+
     // Long-press to lift, drag, release to drop. `el` is one rendering of the marker; it is discarded on 'remove'.
     const attachPress = (el: HTMLElement, marker: L.Marker, image: ImageRecord) => {
       let press: PressState = { kind: 'idle' };
@@ -98,6 +128,8 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       let lastY = 0;
       let liftX = 0;
       let liftY = 0;
+      // Marker element currently ringed as the drop target.
+      let targetEl: HTMLElement | null = null;
 
       const send = (event: PressEvent) => {
         press = pressReducer(press, event);
@@ -107,7 +139,17 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
         e.stopPropagation();
         e.preventDefault();
       };
+      const targetAt = (e: PointerEvent): string | undefined =>
+        findDropTarget(map.mouseEventToContainerPoint(e), candidates(), image.id);
+      const showTarget = (targetId: string | undefined) => {
+        const next = (targetId && markersRef.current.get(targetId)?.marker.getElement()) || null;
+        if (next === targetEl) return;
+        targetEl?.classList.remove('marker-drop-target');
+        next?.classList.add('marker-drop-target');
+        targetEl = next;
+      };
       const lift = () => {
+        invalidateCandidates();
         restoreDragging = map.dragging.enabled();
         map.dragging.disable(); // also ends the map pan Leaflet started on pointerdown
         marker.fire('dragstart'); // markercluster: don't re-cluster on every move until 'dragend'
@@ -120,6 +162,7 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       const land = (dropped: boolean) => {
         send({ type: dropped ? 'up' : 'cancel' });
         el.classList.remove('marker-lifted');
+        showTarget(undefined);
         if (restoreDragging) map.dragging.enable();
         restoreDragging = false;
         abortLiftRef.current = null;
@@ -151,6 +194,7 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
         if (press.kind === 'armed') {
           stop(e);
           marker.setLatLng(map.mouseEventToLatLng(e).wrap());
+          showTarget(targetAt(e));
         } else {
           send({ type: 'move', x: e.clientX, y: e.clientY });
         }
@@ -169,9 +213,10 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
           return;
         }
         const { lat, lng } = map.mouseEventToLatLng(e).wrap();
+        const targetId = targetAt(e);
         marker.setLatLng([lat, lng]);
         land(true);
-        latest.current.onMarkerDrop?.(image.id, { lat, lng });
+        latest.current.onMarkerDrop?.(image.id, { lat, lng }, targetId);
       });
       const cancel = (e: PointerEvent) => {
         if (e.pointerId !== pointerId) return;
@@ -190,17 +235,12 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       });
     };
 
-    if (clusterGroupRef.current) {
-      map.removeLayer(clusterGroupRef.current);
-      clusterGroupRef.current = null;
-    }
-    markersRef.current.clear();
-
-    const clusterGroup = L.markerClusterGroup();
-    clusterGroupRef.current = clusterGroup;
-
-    images.forEach(image => {
-      const isSelected = image.id === selectedImageId;
+    // One marker per group (its representative), badged with the member count.
+    const { markers, counts } = collapseGroups(images);
+    const selectedGroupId = images.find(img => img.id === selectedImageId)?.groupId;
+    markers.forEach(image => {
+      const isSelected = image.id === selectedImageId || (!!selectedGroupId && image.groupId === selectedGroupId);
+      const count = counts.get(image.id);
       const borderColor = isSelected ? '#4285f4' : 'white';
       const extraShadow = isSelected ? ', 0 0 0 3px rgba(66,133,244,0.4)' : '';
 
@@ -223,7 +263,7 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
             alt=""
             draggable="false"
             style="width: 54px; height: 54px; border-radius: 50%; object-fit: cover;"
-          /></div>`,
+          /></div>${count ? `<span class="marker-count">${count}</span>` : ''}`,
         iconSize: [60, 60],
         iconAnchor: [30, 30],
       });
@@ -242,6 +282,7 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
     map.addLayer(clusterGroup);
 
     return () => {
+      map.off('zoomend moveend', invalidateCandidates);
       abortLiftRef.current?.();
       if (clusterGroupRef.current) {
         map.removeLayer(clusterGroupRef.current);

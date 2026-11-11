@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router';
 import { apiClient } from '../services';
 import type { GeoLocation, ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';
-import { computeNearbyGroup } from '../utils/nearbyGroup';
+import { lightboxOrder } from '../utils/groups';
 import { getPosition, hasGps, watchPosition } from '../utils/geolocation';
 import { canOpenGallery, nativeOpenGallery } from '../utils/native';
 import { initialViewBounds } from '../utils/initialView';
@@ -20,9 +20,12 @@ import './MapPage.css';
 // Admin-only: keep it out of the main bundle.
 const MoveAccept = lazy(() => import('./admin/MoveAccept'));
 const VisibilityButton = lazy(() => import('./admin/VisibilityButton'));
+const UngroupButton = lazy(() => import('./admin/UngroupButton'));
 
 const SAVE_ERROR = "Couldn't save the new position.";
 const VISIBILITY_ERROR = "Couldn't change visibility.";
+const GROUP_SAVE_ERROR = "Couldn't group the photos.";
+const UNGROUP_ERROR = "Couldn't change the group.";
 const TOAST_MS = 3000;
 
 const MapPage: React.FC = () => {
@@ -41,6 +44,7 @@ const MapPage: React.FC = () => {
   // `id` changes on every show, so a repeat of the same message restarts the timer.
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
+  const [groupBusy, setGroupBusy] = useState(false);
   const isAdmin = !!me?.isAdmin;
 
   // useRef fields — mutations do NOT trigger re-renders
@@ -72,7 +76,7 @@ const MapPage: React.FC = () => {
       return;
     }
     setSelectedImage(fresh);
-    setNearbyGroup(computeNearbyGroup(fresh, loadedImages));
+    setNearbyGroup(lightboxOrder(fresh, loadedImages));
   };
 
   // Every load takes the next sequence number; only the latest may apply its response, so a slow mount load can't
@@ -95,7 +99,7 @@ const MapPage: React.FC = () => {
       return;
     }
     setSelectedImage(image);
-    setNearbyGroup(computeNearbyGroup(image, loadedImages));
+    setNearbyGroup(lightboxOrder(image, loadedImages));
 
     // Pan to image — defer via pendingPanRef if map isn't mounted yet
     if (mapRef.current) {
@@ -192,7 +196,7 @@ const MapPage: React.FC = () => {
 
     // Only update state if the URL-driven image differs from current selection
     if (image.id !== selectedImage?.id) {
-      const group = computeNearbyGroup(image, images);
+      const group = lightboxOrder(image, images);
       setSelectedImage(image);
       setNearbyGroup(group);
     }
@@ -226,7 +230,7 @@ const MapPage: React.FC = () => {
     const cleanId = extractImageId(imageId);
     const image = images.find(img => img.id === cleanId);
     if (!image) return;
-    const group = computeNearbyGroup(image, images);
+    const group = lightboxOrder(image, images);
     setSelectedImage(image);
     setNearbyGroup(group);
     navigate(`/map/image/${image.id}`);
@@ -251,29 +255,48 @@ const MapPage: React.FC = () => {
     handleImageNavigated(nextImage.id);
   }, [selectedImage, nearbyGroup, navigate, handleImageNavigated]);
 
-  const handleMarkerDrop = useCallback((imageId: string, to: LatLng) => {
+  const handleMarkerDrop = useCallback((imageId: string, to: LatLng, targetId?: string) => {
     const image = images.find(img => img.id === imageId);
     if (!image) return;
-    dispatchMove({ type: 'drop', imageId, from: { lat: image.latitude, lng: image.longitude }, to });
+    dispatchMove({ type: 'drop', imageId, from: { lat: image.latitude, lng: image.longitude }, to, targetId });
   }, [images]);
+
+  // Swap the records an admin mutation returned (by id) into the list, the open photo and its lightbox order.
+  const mergeRecords = useCallback((updated: ImageRecord[]) => {
+    const byId = new Map(updated.map(img => [img.id, img]));
+    const merge = (img: ImageRecord) => byId.get(img.id) ?? img;
+    setImages(prev => prev.map(merge));
+    setNearbyGroup(prev => prev.map(merge));
+    setSelectedImage(prev => (prev ? merge(prev) : prev));
+  }, []);
+
+  const showToast = useCallback((text: string) => setToast(prev => ({ id: (prev?.id ?? 0) + 1, text })), []);
 
   const discardMove = useCallback(() => dispatchMove({ type: 'discard' }), []);
 
   const handleAccept = useCallback(() => {
     if (!move || move.status !== 'pending') return;
     dispatchMove({ type: 'accept' });
-    apiClient
-      .setImageLocation(move.imageId, move.to.lat, move.to.lng)
-      .then((updated) => {
-        const byId = new Map(updated.map(img => [img.id, img]));
-        setImages(prev => prev.map(img => byId.get(img.id) ?? img));
+    // Dropped onto another marker: group with it. Either call returns every affected record (a moved or dragged
+    // group representative brings its whole group along).
+    const { imageId, targetId, to } = move;
+    const save = targetId
+      ? apiClient.groupImages(imageId, targetId).catch((err: unknown) => {
+        console.error('Failed to group images:', err);
+        showToast(GROUP_SAVE_ERROR);
+        return null;
       })
-      .catch((err: unknown) => {
+      : apiClient.setImageLocation(imageId, to.lat, to.lng).catch((err: unknown) => {
         console.error('Failed to save image location:', err);
-        setToast(prev => ({ id: (prev?.id ?? 0) + 1, text: SAVE_ERROR }));
+        showToast(SAVE_ERROR);
+        return null;
+      });
+    void save
+      .then((updated) => {
+        if (updated) mergeRecords(updated);
       })
       .finally(() => dispatchMove({ type: 'settled' }));
-  }, [move]);
+  }, [move, mergeRecords, showToast]);
 
   // Hide/unhide the open photo. The API returns every record sharing its content hash (new URLs, `hidden` flag).
   const handleToggleHidden = useCallback(() => {
@@ -281,19 +304,27 @@ const MapPage: React.FC = () => {
     setVisibilityBusy(true);
     apiClient
       .setHidden(selectedImage.id, !selectedImage.hidden)
-      .then((updated) => {
-        const byId = new Map(updated.map(img => [img.id, img]));
-        const merge = (img: ImageRecord) => byId.get(img.id) ?? img;
-        setImages(prev => prev.map(merge));
-        setNearbyGroup(prev => prev.map(merge));
-        setSelectedImage(prev => (prev ? merge(prev) : prev));
-      })
+      .then(mergeRecords)
       .catch((err: unknown) => {
         console.error('Failed to change image visibility:', err);
-        setToast(prev => ({ id: (prev?.id ?? 0) + 1, text: VISIBILITY_ERROR }));
+        showToast(VISIBILITY_ERROR);
       })
       .finally(() => setVisibilityBusy(false));
-  }, [selectedImage, visibilityBusy]);
+  }, [selectedImage, visibilityBusy, mergeRecords, showToast]);
+
+  // Take the open photo out of its group. The API returns it and any partner a two-photo group leaves behind.
+  const handleUngroup = useCallback(() => {
+    if (!selectedImage || groupBusy) return;
+    setGroupBusy(true);
+    apiClient
+      .ungroupImage(selectedImage.id)
+      .then(mergeRecords)
+      .catch((err: unknown) => {
+        console.error('Failed to change image group:', err);
+        showToast(UNGROUP_ERROR);
+      })
+      .finally(() => setGroupBusy(false));
+  }, [selectedImage, groupBusy, mergeRecords, showToast]);
 
   // Escape discards a pending move; only listen while there is one.
   const hasMove = move !== null;
@@ -396,7 +427,11 @@ const MapPage: React.FC = () => {
 
       {isAdmin && move && (
         <Suspense fallback={null}>
-          <MoveAccept saving={move.status === 'saving'} onAccept={handleAccept} />
+          <MoveAccept
+            variant={move.targetId ? 'group' : 'move'}
+            saving={move.status === 'saving'}
+            onAccept={handleAccept}
+          />
         </Suspense>
       )}
 
@@ -415,6 +450,7 @@ const MapPage: React.FC = () => {
         onImageNavigated={handleImageNavigated}
         adminActions={isAdmin && selectedImage ? (
           <Suspense fallback={null}>
+            {selectedImage.groupId && <UngroupButton busy={groupBusy} onUngroup={handleUngroup} />}
             <VisibilityButton image={selectedImage} busy={visibilityBusy} onToggle={handleToggleHidden} />
           </Suspense>
         ) : undefined}

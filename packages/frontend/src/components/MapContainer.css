@@ -144,3 +144,27 @@
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45) !important; /* overrides the inline marker shadow */
   cursor: grabbing !important;
 }
+
+
+/* Admin drag: ring the marker the lifted one would be grouped with on release. */
+.marker-drop-target .photo-marker {
+  box-shadow: 0 0 0 4px #2e9e4f !important; /* overrides the inline marker shadow */
+}
+
+/* Member count of a grouped photo, top-right of its marker (the icon element is the positioning context). */
+.marker-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 2px solid #fff;
+  border-radius: 11px;
+  background: #2e9e4f;
+  color: #fff;
+  font: 600 12px/18px system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
