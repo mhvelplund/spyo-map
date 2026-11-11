@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 import type { Config } from "./config.js";
 import {
   fetchExistingIds,
+  fetchHiddenNames,
   upsertImages,
   type D1Client,
   type ImageInsert,
@@ -21,6 +22,16 @@ const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".tiff", ".tif"]);
 
 function sha256Hex(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+/** Where a processed photo is written: images/ normally, private/ (random name) when hidden. */
+export function outputKeys(
+  id: string,
+  privateName: string | undefined,
+): { full: string; thumb: string } {
+  return privateName
+    ? { full: `private/${privateName}.jpg`, thumb: `private/thumbnails/${privateName}.jpg` }
+    : { full: `images/${id}.jpg`, thumb: `images/thumbnails/${id}.jpg` };
 }
 
 function failedKey(key: string): string {
@@ -87,16 +98,17 @@ export async function runExtractor(
   console.log("Fetching known image ids from D1...");
   const existingIds = await fetchExistingIds(d1);
   console.log(`D1 holds ${existingIds.size} image(s).`);
+  const hiddenNames = await fetchHiddenNames(d1);
 
   if (config.localSourcePath) {
-    const rows = await processLocalSource(config, s3, existingIds);
+    const rows = await processLocalSource(config, s3, existingIds, hiddenNames);
     await upsertImages(d1, rows);
     console.log(`Wrote ${rows.length} new row(s) to D1.`);
     console.log("Extractor complete.");
     return;
   }
 
-  const { rows, keysToArchive, keysToFail } = await processBucketSource(config, s3, existingIds);
+  const { rows, keysToArchive, keysToFail } = await processBucketSource(config, s3, existingIds, hiddenNames);
 
   // Commit metadata before moving anything, so a failure never loses a photo.
   await upsertImages(d1, rows);
@@ -138,6 +150,7 @@ async function processLocalSource(
   config: Config,
   s3: S3Client,
   existingIds: Set<string>,
+  hiddenNames: Map<string, string>,
 ): Promise<ImageInsert[]> {
   const sourceDir = config.localSourcePath!;
   console.log(`Scanning local source: ${sourceDir}`);
@@ -170,20 +183,16 @@ async function processLocalSource(
       }
 
       const { fullSize, thumbnail } = await processImage(buffer);
-      await putObject(s3, config.storageBucket, `images/${id}.jpg`, fullSize, "image/jpeg");
-      await putObject(
-        s3,
-        config.storageBucket,
-        `images/thumbnails/${id}.jpg`,
-        thumbnail,
-        "image/jpeg",
-      );
+      const contentHash = sha256Hex(buffer);
+      const keys = outputKeys(id, hiddenNames.get(contentHash));
+      await putObject(s3, config.storageBucket, keys.full, fullSize, "image/jpeg");
+      await putObject(s3, config.storageBucket, keys.thumb, thumbnail, "image/jpeg");
       rows.push({
         id,
         path: relPath,
         exif,
         uploaderId: 1,
-        contentHash: sha256Hex(buffer),
+        contentHash,
       });
     } catch (err) {
       console.error(`  Error processing ${relPath}:`, err);
@@ -198,6 +207,7 @@ async function processBucketSource(
   config: Config,
   s3: S3Client,
   existingIds: Set<string>,
+  hiddenNames: Map<string, string>,
 ): Promise<{ rows: ImageInsert[]; keysToArchive: string[]; keysToFail: string[] }> {
   const prefix = config.sourcePrefix;
   console.log(`Scanning bucket ${config.storagePrivateBucket}/${prefix} ...`);
@@ -265,14 +275,9 @@ async function processBucketSource(
         continue;
       }
       const { fullSize, thumbnail } = processed;
-      await putObject(s3, config.storageBucket, `images/${id}.jpg`, fullSize, "image/jpeg");
-      await putObject(
-        s3,
-        config.storageBucket,
-        `images/thumbnails/${id}.jpg`,
-        thumbnail,
-        "image/jpeg",
-      );
+      const keys = outputKeys(id, hiddenNames.get(contentHash));
+      await putObject(s3, config.storageBucket, keys.full, fullSize, "image/jpeg");
+      await putObject(s3, config.storageBucket, keys.thumb, thumbnail, "image/jpeg");
       rows.push({
         id,
         path: originalName(metadata, obj.key),
