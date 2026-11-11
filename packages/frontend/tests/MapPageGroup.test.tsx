@@ -181,6 +181,8 @@ describe('MapPage admin group', () => {
     expect(api.ungroupImage).toHaveBeenCalledWith('a');
     await waitFor(() => expect(props().images).toEqual([plainA, plainB, nearC]));
     expect(screen.queryByRole('button', { name: 'Ungroup photo' })).not.toBeInTheDocument();
+    // The lightbox order is recomputed: 'c' is nearer to 'a' than 'b', which is no longer a group member.
+    expect(screen.getByTestId('order')).toHaveTextContent('a,c,b');
   });
 
   it('shows a toast when ungrouping fails', async () => {

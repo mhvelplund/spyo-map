@@ -318,7 +318,14 @@ const MapPage: React.FC = () => {
     setGroupBusy(true);
     apiClient
       .ungroupImage(selectedImage.id)
-      .then(mergeRecords)
+      .then((updated) => {
+        mergeRecords(updated);
+        // Membership changed, so the lightbox order does too: rebuild it from the merged list.
+        const byId = new Map(updated.map(img => [img.id, img]));
+        const merge = (img: ImageRecord) => byId.get(img.id) ?? img;
+        const selected = selectedRef.current;
+        if (selected) setNearbyGroup(lightboxOrder(merge(selected), imagesRef.current.map(merge)));
+      })
       .catch((err: unknown) => {
         console.error('Failed to change image group:', err);
         showToast(UNGROUP_ERROR);

@@ -222,7 +222,7 @@ export async function findGroupMembers(
 ): Promise<Array<{ contentHash: string; latitude: number; longitude: number }>> {
   const { results } = await db
     .prepare(
-      "SELECT o.content_hash AS content_hash, COALESCE(o.latitude, (SELECT latitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lat, COALESCE(o.longitude, (SELECT longitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lon FROM image_overrides o WHERE o.group_id = ? ORDER BY o.content_hash",
+      "SELECT o.content_hash AS content_hash, COALESCE(o.latitude, (SELECT latitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lat, COALESCE(o.longitude, (SELECT longitude FROM images WHERE content_hash = o.content_hash ORDER BY id LIMIT 1)) AS lon FROM image_overrides o WHERE o.group_id = ? AND EXISTS (SELECT 1 FROM images WHERE images.content_hash = o.content_hash) ORDER BY o.content_hash",
     )
     .bind(groupId)
     .all<{ content_hash: string; lat: number; lon: number }>();
@@ -239,26 +239,55 @@ export interface GroupWrite {
   preGroupLongitude: number;
 }
 
-/** Upsert group membership for every row in one batch (a transaction). */
-export async function writeGroup(db: D1Database, rows: GroupWrite[], now: string): Promise<void> {
-  await db.batch(
-    rows.map((r) =>
+const GROUP_COLUMNS =
+  "content_hash, latitude, longitude, updated_at, group_id, grouped_at, pre_group_latitude, pre_group_longitude";
+const GROUP_UPDATE =
+  "ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at, group_id = excluded.group_id, grouped_at = excluded.grouped_at, pre_group_latitude = excluded.pre_group_latitude, pre_group_longitude = excluded.pre_group_longitude";
+
+const groupValues = (r: GroupWrite, now: string) => [
+  r.contentHash,
+  r.latitude,
+  r.longitude,
+  now,
+  r.groupId,
+  r.groupedAt,
+  r.preGroupLatitude,
+  r.preGroupLongitude,
+];
+
+/**
+ * Write group membership in one batch (a transaction). `target` (a new group's first member) is claimed only while it
+ * is still ungrouped; each joiner is written only if the target then carries `targetHash`/`groupId`. So of two
+ * concurrent requests onto the same ungrouped target, the loser writes nothing. Returns the joiner rows changed.
+ */
+export async function writeGroup(
+  db: D1Database,
+  target: GroupWrite | null,
+  targetHash: string,
+  joiners: GroupWrite[],
+  now: string,
+): Promise<number> {
+  const results = await db.batch([
+    ...(target === null
+      ? []
+      : [
+          db
+            .prepare(
+              `INSERT INTO image_overrides (${GROUP_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ${GROUP_UPDATE} WHERE image_overrides.group_id IS NULL`,
+            )
+            .bind(...groupValues(target, now)),
+        ]),
+    ...joiners.map((r) =>
       db
         .prepare(
-          "INSERT INTO image_overrides (content_hash, latitude, longitude, updated_at, group_id, grouped_at, pre_group_latitude, pre_group_longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at, group_id = excluded.group_id, grouped_at = excluded.grouped_at, pre_group_latitude = excluded.pre_group_latitude, pre_group_longitude = excluded.pre_group_longitude",
+          `INSERT INTO image_overrides (${GROUP_COLUMNS}) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM image_overrides WHERE content_hash = ? AND group_id = ?) ${GROUP_UPDATE}`,
         )
-        .bind(
-          r.contentHash,
-          r.latitude,
-          r.longitude,
-          now,
-          r.groupId,
-          r.groupedAt,
-          r.preGroupLatitude,
-          r.preGroupLongitude,
-        ),
+        .bind(...groupValues(r, now), targetHash, r.groupId),
     ),
-  );
+  ]);
+  return results
+    .slice(target === null ? 0 : 1)
+    .reduce((sum, r) => sum + ((r as { meta?: { changes?: number } }).meta?.changes ?? 0), 0);
 }
 
 /**

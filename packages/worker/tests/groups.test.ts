@@ -27,10 +27,15 @@ type Row = {
 function setup() {
   const { db, raw } = sqliteD1();
   let batches = 0;
+  // Runs once just before the next batch: simulates another request landing between the handler's read and write.
+  let beforeBatch: (() => void) | null = null;
   const counted = {
     prepare: db.prepare.bind(db),
     batch: (stmts: never) => {
       batches += 1;
+      const hook = beforeBatch;
+      beforeBatch = null;
+      hook?.();
       return db.batch(stmts);
     },
   };
@@ -64,7 +69,10 @@ function setup() {
       .get(hash) as Row | undefined;
   const all = () => raw.prepare('SELECT * FROM image_overrides ORDER BY content_hash').all();
   const env = { DB: counted, IMAGES_BASE_URL: BASE } as never;
-  return { env, raw, insert, override, row, all, batches: () => batches };
+  const onNextBatch = (fn: () => void) => {
+    beforeBatch = fn;
+  };
+  return { env, raw, insert, override, row, all, batches: () => batches, onNextBatch };
 }
 
 const req = (
@@ -160,6 +168,58 @@ describe('POST /api/images/:id/group', () => {
       expect(row(h)!.grouped_at! > row('he')!.grouped_at!).toBe(true);
     }
     expect(row('he')).toMatchObject({ latitude: 50, longitude: 60, pre_group_latitude: 50, pre_group_longitude: 60 });
+  });
+
+  it('returns the whole resulting group', async () => {
+    const { env, insert, override } = setup();
+    const G = 'f'.repeat(32);
+    insert('b', 'hb');
+    insert('x', 'hx');
+    insert('y', 'hy');
+    insert('c', 'hc');
+    override('hb', { lat: 1, lon: 2, group: G, at: '2024-02-01T00:00:00.000Z' });
+    override('hx', { lat: 1, lon: 2, group: G, at: '2024-02-02T00:00:00.000Z' });
+    override('hy', { lat: 1, lon: 2, group: G, at: '2024-02-03T00:00:00.000Z' });
+    const res = await handleApiRequest(group('c', 'b'), env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Rec[];
+    expect(body.map((r) => r.id).sort()).toEqual(['b', 'c', 'x', 'y']);
+    for (const r of body) expect(r.groupId).toBe(G);
+  });
+
+  it('answers 409 Conflict and writes nothing when the target was grouped by a concurrent request', async () => {
+    const { env, insert, override, row, onNextBatch } = setup();
+    insert('a', 'ha', 1, 2);
+    insert('b', 'hb', 10, 20);
+    insert('x', 'hx', 3, 4);
+    const OTHER = '9'.repeat(32);
+    // The other request (X onto B) commits after our read, before our batch.
+    onNextBatch(() => {
+      override('hb', { lat: 10, lon: 20, group: OTHER, at: '2024-03-01T00:00:00.000Z', pre: [10, 20] });
+      override('hx', { lat: 10, lon: 20, group: OTHER, at: '2024-03-02T00:00:00.000Z', pre: [3, 4] });
+    });
+    const res = await handleApiRequest(group('a', 'b'), env);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Conflict' });
+    expect(row('ha')).toBeUndefined();
+    expect(row('hb')).toMatchObject({ group_id: OTHER, grouped_at: '2024-03-01T00:00:00.000Z' });
+    expect(row('hx')).toMatchObject({ group_id: OTHER });
+  });
+
+  it('answers 409 Conflict when the existing target group changed before the write', async () => {
+    const { env, insert, override, raw, row, onNextBatch } = setup();
+    const G = 'a'.repeat(32);
+    insert('a', 'ha');
+    insert('b', 'hb');
+    insert('x', 'hx');
+    override('hb', { lat: 1, lon: 2, group: G });
+    override('hx', { lat: 1, lon: 2, group: G });
+    onNextBatch(() => {
+      raw.prepare('UPDATE image_overrides SET group_id = NULL, grouped_at = NULL').run();
+    });
+    const res = await handleApiRequest(group('a', 'b'), env);
+    expect(res.status).toBe(409);
+    expect(row('ha')).toBeUndefined();
   });
 
   it('answers 409 Already grouped onto a member of the same group', async () => {
@@ -283,6 +343,22 @@ describe('POST /api/images/:id/ungroup', () => {
     for (const r of body) expect('groupId' in r).toBe(false);
     expect(row('hb')).toMatchObject({ latitude: 5, longitude: 6, group_id: null, grouped_at: null });
     expect(row('ha')).toMatchObject({ latitude: 1, longitude: 2, group_id: null });
+  });
+
+  it('ignores orphan overrides (no images row) when deciding to dissolve', async () => {
+    const { env, insert, override, raw, row } = setup();
+    insert('a', 'ha');
+    insert('b', 'hb');
+    insert('c', 'hc');
+    override('ha', { lat: 5, lon: 6, group: G, pre: [1, 2] });
+    override('hb', { lat: 5, lon: 6, group: G, pre: [3, 4] });
+    override('hc', { lat: 5, lon: 6, group: G, pre: [7, 8] });
+    raw.prepare('DELETE FROM images WHERE id = ?').run('c'); // e.g. `admin images remove`
+    const res = await handleApiRequest(ungroup('a'), env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Rec[];
+    expect(body.map((r) => r.id).sort()).toEqual(['a', 'b']);
+    expect(row('hb')).toMatchObject({ group_id: null, grouped_at: null });
   });
 
   it('answers 409 Not grouped for an ungrouped photo', async () => {

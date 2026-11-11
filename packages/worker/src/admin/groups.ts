@@ -4,6 +4,7 @@ import {
   findContentHash,
   findGroupMembers,
   findGroupState,
+  queryGroupRecords,
   queryImagesByContentHashes,
   writeGroup,
   writeUngroup,
@@ -67,7 +68,7 @@ export async function handleGroup(request: Request, env: Env, id: string): Promi
       ? [{ contentHash: source.contentHash, latitude: sourceState.latitude, longitude: sourceState.longitude }]
       : await findGroupMembers(env.DB, sourceState.groupId);
 
-  const writes: GroupWrite[] = joiners.map((m) => ({
+  const joinerWrites: GroupWrite[] = joiners.map((m) => ({
     contentHash: m.contentHash,
     latitude,
     longitude,
@@ -76,21 +77,23 @@ export async function handleGroup(request: Request, env: Env, id: string): Promi
     preGroupLatitude: m.latitude,
     preGroupLongitude: m.longitude,
   }));
-  if (targetState.groupId === null) {
-    writes.unshift({
-      contentHash: target.contentHash,
-      latitude,
-      longitude,
-      groupId,
-      groupedAt: now,
-      preGroupLatitude: latitude,
-      preGroupLongitude: longitude,
-    });
-  }
-  await writeGroup(env.DB, writes, now);
+  const targetWrite: GroupWrite | null =
+    targetState.groupId === null
+      ? {
+          contentHash: target.contentHash,
+          latitude,
+          longitude,
+          groupId,
+          groupedAt: now,
+          preGroupLatitude: latitude,
+          preGroupLongitude: longitude,
+        }
+      : null;
+  // A concurrent request changed the target's group between our read and write: nothing was written.
+  const joined = await writeGroup(env.DB, targetWrite, target.contentHash, joinerWrites, now);
+  if (joined === 0) return respond({ error: "Conflict" }, 409);
 
-  const hashes = [target.contentHash, ...joiners.map((m) => m.contentHash)];
-  return respond(await queryImagesByContentHashes(env.DB, hashes, env.IMAGES_BASE_URL, viewer), 200);
+  return respond(await queryGroupRecords(env.DB, groupId, env.IMAGES_BASE_URL, viewer), 200);
 }
 
 /** POST /api/images/:id/ungroup — the photo leaves its group; a group left with one member dissolves. */
