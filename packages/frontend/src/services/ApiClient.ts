@@ -30,6 +30,19 @@ export class ApiClient {
     }
     return response.json() as Promise<ImageRecord[]>;
   }
+
+  async setImageLocation(id: string, latitude: number, longitude: number): Promise<ImageRecord[]> {
+    const response = await fetch(`${API_BASE_URL}/api/images/${encodeURIComponent(id)}/location`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ latitude, longitude }),
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to set image location: ${response.statusText}`);
+    }
+    return response.json() as Promise<ImageRecord[]>;
+  }
 }
 
 export const apiClient = new ApiClient();

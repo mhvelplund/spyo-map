@@ -101,3 +101,22 @@ describe('getNearbyImages', () => {
     await expect(client.getNearbyImages('img1')).rejects.toThrow('Connection refused');
   });
 });
+
+describe('setImageLocation', () => {
+  it('PUTs the encoded URL with JSON body and same-origin credentials', async () => {
+    fetchSpy.mockResolvedValue(makeResponse([FIXTURE]));
+    const result = await client.setImageLocation('a/b', 1.5, 2.5);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/a%2Fb/location', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ latitude: 1.5, longitude: 2.5 }),
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([FIXTURE]);
+  });
+
+  it('rejects on 403', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'Forbidden' }, 403));
+    await expect(client.setImageLocation('img1', 1, 2)).rejects.toThrow();
+  });
+});
