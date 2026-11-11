@@ -67,6 +67,8 @@ export async function handleGroup(request: Request, env: Env, id: string): Promi
     sourceState.groupId === null
       ? [{ contentHash: source.contentHash, latitude: sourceState.latitude, longitude: sourceState.longitude }]
       : await findGroupMembers(env.DB, sourceState.groupId);
+  // The source's group was dissolved concurrently: claiming the target now would leave a one-photo group.
+  if (joiners.length === 0) return respond({ error: "Conflict" }, 409);
 
   const joinerWrites: GroupWrite[] = joiners.map((m) => ({
     contentHash: m.contentHash,
