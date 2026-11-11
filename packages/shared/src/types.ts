@@ -22,6 +22,8 @@ export interface ImageRecord {
   destBearing?: number;
   hPositioningError?: number;
   uploaderName: string;
+  /** Present and false only when the image has no content hash, so its position cannot be overridden. */
+  editable?: boolean;
 }
 
 export interface AppState {

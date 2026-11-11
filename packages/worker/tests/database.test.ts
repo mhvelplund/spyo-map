@@ -56,6 +56,12 @@ describe('rowToRecord', () => {
     expect(rowToRecord(ROW_A, BASE_URL).uploaderName).toBe('');
   });
 
+  it('prefers eff_latitude/eff_longitude over latitude/longitude', () => {
+    const record = rowToRecord({ ...ROW_A, eff_latitude: 1.5, eff_longitude: 2.5 }, BASE_URL);
+    expect(record.latitude).toBe(1.5);
+    expect(record.longitude).toBe(2.5);
+  });
+
   it('coerces a null timestamp to an empty string', () => {
     const record = rowToRecord({ ...ROW_A, timestamp: null }, BASE_URL);
     expect(record.timestamp).toBe('');

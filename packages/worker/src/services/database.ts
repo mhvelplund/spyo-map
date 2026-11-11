@@ -2,8 +2,10 @@ import type { D1Database } from "@cloudflare/workers-types";
 import type { ImageRecord } from "@spyo-map/shared";
 import { haversineKm } from "../utils.js";
 
+// Effective position = admin override (keyed by content hash) else EXIF. Aliased to eff_* because
+// duplicate column names are ambiguous in D1 result objects.
 const IMAGE_SELECT =
-  "SELECT images.*, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id";
+  "SELECT images.*, COALESCE(o.latitude, images.latitude) AS eff_latitude, COALESCE(o.longitude, images.longitude) AS eff_longitude, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id LEFT JOIN image_overrides o ON o.content_hash = images.content_hash";
 
 export function rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord {
   const id = row.id as string;
@@ -11,10 +13,11 @@ export function rowToRecord(row: Record<string, unknown>, baseUrl: string): Imag
     id,
     imageUrl: `${baseUrl}/images/${id}.jpg`,
     thumbnailUrl: `${baseUrl}/images/thumbnails/${id}.jpg`,
-    latitude: row.latitude as number,
-    longitude: row.longitude as number,
+    latitude: (row.eff_latitude ?? row.latitude) as number,
+    longitude: (row.eff_longitude ?? row.longitude) as number,
     timestamp: (row.timestamp as string | null) ?? "",
     uploaderName: (row.uploader_name as string | null) ?? "",
+    ...(row.content_hash === null ? { editable: false } : {}),
     ...(row.latitude_ref != null ? { latitudeRef: row.latitude_ref as string } : {}),
     ...(row.longitude_ref != null ? { longitudeRef: row.longitude_ref as string } : {}),
     ...(row.altitude_ref != null ? { altitudeRef: String(row.altitude_ref) } : {}),
@@ -63,9 +66,10 @@ export async function queryNearbyImages(
     .all<Record<string, unknown>>();
 
   return results
-    .map((row) => ({
-      record: rowToRecord(row, baseUrl),
-      dist: haversineKm(lat, lon, row.latitude as number, row.longitude as number),
+    .map((row) => rowToRecord(row, baseUrl))
+    .map((record) => ({
+      record,
+      dist: haversineKm(lat, lon, record.latitude, record.longitude),
     }))
     .filter(({ dist }) => dist <= radiusKm)
     .sort((a, b) => a.dist - b.dist)
