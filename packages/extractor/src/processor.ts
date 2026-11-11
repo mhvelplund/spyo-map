@@ -59,7 +59,7 @@ export async function extractExif(imageBuffer: Buffer): Promise<ExifData | null>
 export async function processImage(imageBuffer: Buffer): Promise<ProcessedImage> {
   const [fullSize, thumbnail] = await Promise.all([
     sharp(imageBuffer)
-      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+      .resize(4096, 4096, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer(),
     sharp(imageBuffer)

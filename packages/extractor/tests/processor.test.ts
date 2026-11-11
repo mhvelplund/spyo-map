@@ -122,11 +122,11 @@ describe('processImage', () => {
     expect(thumbnail).toEqual(Buffer.from('mock-image'));
   });
 
-  it('resizes full-size to max 2048x2048 (inside fit)', async () => {
+  it('resizes full-size to max 4096x4096 (inside fit)', async () => {
     await processImage(Buffer.from('x'));
     expect(mockResize).toHaveBeenCalledWith(
-      2048,
-      2048,
+      4096,
+      4096,
       expect.objectContaining({ fit: 'inside', withoutEnlargement: true }),
     );
   });
