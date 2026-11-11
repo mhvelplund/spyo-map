@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { jest } from '@jest/globals';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import type { ImageRecord } from '../../shared/src/types';
 
 interface CapturedProps {
@@ -60,7 +60,23 @@ const hiddenA: ImageRecord = {
 
 const imageB: ImageRecord = { ...imageA, id: 'b', latitude: 50, longitude: 60 };
 
-const PathProbe = () => <div data-testid="path">{useLocation().pathname}</div>;
+const PathProbe = () => {
+  const navigate = useNavigate();
+  return (
+    <>
+      <div data-testid="path">{useLocation().pathname}</div>
+      <button type="button" onClick={() => navigate('/map/image/a')}>go a</button>
+    </>
+  );
+};
+
+const deferred = <T,>() => {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => { resolve = r; });
+  return { promise, resolve };
+};
+
+const asVisitor = () => session.useSession.mockReturnValue({ me: null, signOut: async () => {} });
 
 const pageAt = (path: string) => (
   <MemoryRouter initialEntries={[path]}>
@@ -162,5 +178,80 @@ describe('MapPage admin hide', () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+describe('MapPage load ordering', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    lastProps = null;
+  });
+
+  it('a mount load that lands after the admin reload does not overwrite it', async () => {
+    const mount = deferred<ImageRecord[]>();
+    const reload = deferred<ImageRecord[]>();
+    api.getAllImages.mockReturnValueOnce(mount.promise).mockReturnValueOnce(reload.promise);
+    asVisitor();
+    const view = render(pageAt('/map'));
+    asAdmin();
+    view.rerender(pageAt('/map'));
+    expect(api.getAllImages).toHaveBeenCalledTimes(2);
+
+    await act(async () => reload.resolve([hiddenA, imageB]));
+    await act(async () => mount.resolve([imageB]));
+
+    expect(screen.queryByText('Loading images...')).not.toBeInTheDocument();
+    expect(props().images).toEqual([hiddenA, imageB]);
+  });
+
+  it('a failed reload does not count, so the next change back to admin retries', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      asVisitor();
+      api.getAllImages
+        .mockResolvedValueOnce([imageB])
+        .mockRejectedValueOnce(new Error('nope'))
+        .mockResolvedValueOnce([hiddenA, imageB]);
+      const view = render(pageAt('/map'));
+      await screen.findByTestId('map');
+
+      asAdmin();
+      view.rerender(pageAt('/map'));
+      await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Failed to reload images:', expect.anything()));
+      expect(props().images).toEqual([imageB]);
+
+      // Back to visitor: the visitor list is what's shown, so no fetch. Then admin again retries.
+      asVisitor();
+      view.rerender(pageAt('/map'));
+      asAdmin();
+      view.rerender(pageAt('/map'));
+      await waitFor(() => expect(props().images).toEqual([hiddenA, imageB]));
+      expect(api.getAllImages).toHaveBeenCalledTimes(3);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('after a reload to an empty list closes the photo, a later visit to that id is an unknown id', async () => {
+    asAdmin();
+    api.getAllImages
+      .mockResolvedValueOnce([hiddenA])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([imageB]);
+    const view = render(pageAt('/map/image/a'));
+    await screen.findByText('Hidden');
+
+    asVisitor();
+    view.rerender(pageAt('/map/image/a'));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/map$/));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Visit the closed id while the list is still empty, then let a reload repopulate it.
+    fireEvent.click(screen.getByRole('button', { name: 'go a' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/map/image/a');
+    asAdmin();
+    view.rerender(pageAt('/map/image/a'));
+    await waitFor(() => expect(props().images).toEqual([imageB]));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/));
   });
 });

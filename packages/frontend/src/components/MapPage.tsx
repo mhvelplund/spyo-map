@@ -75,88 +75,91 @@ const MapPage: React.FC = () => {
     setNearbyGroup(computeNearbyGroup(fresh, loadedImages));
   };
 
-  // The one image loader. The initial load shows the spinner and resolves a deep link; a reload (admin state
-  // changed) swaps the list in place, and if it fails drops hidden photos so nothing private lingers after sign-out.
-  // Resolves true when the list was loaded.
-  const loadImages = async (signal: AbortSignal, initial: boolean): Promise<boolean> => {
-    if (!initial) {
-      try {
-        const loadedImages = await apiClient.getAllImages();
-        if (signal.aborted) return false;
-        reconcileImages(loadedImages);
-        return true;
-      } catch (err) {
-        if (signal.aborted) return false;
-        console.error('Failed to reload images:', err);
-        reconcileImages(imagesRef.current.filter(img => !img.hidden));
-        return false;
-      }
+  // Every load takes the next sequence number; only the latest may apply its response, so a slow mount load can't
+  // overwrite a reload that already landed. Unmounting bumps it too, which makes everything in flight stale.
+  const loadSeqRef = useRef(0);
+  const firstLoadDoneRef = useRef(false);
+
+  // First list to land (normally the mount load): resolve a deep link if imageId is present in the URL.
+  const applyFirstLoad = (loadedImages: ImageRecord[]) => {
+    firstLoadDoneRef.current = true;
+    setError(null);
+    setImages(loadedImages);
+    setLoading(false);
+    if (!rawImageId) return;
+
+    const cleanId = extractImageId(rawImageId);
+    const image = loadedImages.find(img => img.id === cleanId);
+    if (!image) {
+      navigate('/', { replace: true });
+      return;
     }
+    setSelectedImage(image);
+    setNearbyGroup(computeNearbyGroup(image, loadedImages));
 
-    // `loading` starts true and `error` null; the initial load runs only on mount.
-    try {
-      const loadedImages = await apiClient.getAllImages();
-      if (signal.aborted) return false;
-      setImages(loadedImages);
-
-      if (rawImageId) {
-        const cleanId = extractImageId(rawImageId);
-        const image = loadedImages.find(img => img.id === cleanId);
-
-        if (!image) {
-          navigate('/', { replace: true });
-          return true;
-        }
-
-        const group = computeNearbyGroup(image, loadedImages);
-        setSelectedImage(image);
-        setNearbyGroup(group);
-
-        // Pan to image — defer via pendingPanRef if map isn't mounted yet
-        if (mapRef.current) {
-          mapRef.current.panTo([image.latitude, image.longitude]);
-        } else {
-          pendingPanRef.current = [image.latitude, image.longitude];
-        }
-      }
-      return true;
-    } catch (err) {
-      if (signal.aborted) return false;
-      console.error('Failed to load images:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load images');
-      return false;
-    } finally {
-      if (!signal.aborted) setLoading(false);
+    // Pan to image — defer via pendingPanRef if map isn't mounted yet
+    if (mapRef.current) {
+      mapRef.current.panTo([image.latitude, image.longitude]);
+    } else {
+      pendingPanRef.current = [image.latitude, image.longitude];
     }
   };
 
-  // Load images once on mount; handle deep-link if imageId is present in the URL
+  // The one image loader, for the mount load and admin-change reloads alike. Resolves true when its list was
+  // applied. A failed reload drops hidden photos so nothing private lingers after sign-out.
+  const loadImages = async (): Promise<boolean> => {
+    const seq = ++loadSeqRef.current;
+    try {
+      const loadedImages = await apiClient.getAllImages();
+      if (seq !== loadSeqRef.current) return false;
+      if (firstLoadDoneRef.current) reconcileImages(loadedImages);
+      else applyFirstLoad(loadedImages);
+      return true;
+    } catch (err) {
+      if (seq !== loadSeqRef.current) return false;
+      if (firstLoadDoneRef.current) {
+        console.error('Failed to reload images:', err);
+        reconcileImages(imagesRef.current.filter(img => !img.hidden));
+      } else {
+        console.error('Failed to load images:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load images');
+        setLoading(false);
+      }
+      return false;
+    }
+  };
+
+  // Load images once on mount (`loading` starts true and `error` null).
   useEffect(() => {
-    const controller = new AbortController();
     // loadImages only sets state after awaiting the fetch; the rule can't see through the async helper.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadImages(controller.signal, true);
-    return () => controller.abort();
+    void loadImages();
+    return () => {
+      loadSeqRef.current += 1;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // runs once on mount — rawImageId is intentionally not a dep (deep-link only)
 
   // Reload when admin state changes after the session first resolves: sign-out must drop hidden photos, and a late
   // (silent) sign-in must bring them in. The first resolved value is only a baseline — the mount load already
-  // fetched with whatever cookie there was.
+  // fetched with whatever cookie there was. `listAdminRef` is what the applied list was loaded for; `wantedAdminRef`
+  // is the target of the latest load started. A failed reload rolls `wanted` back so the next change can retry.
   const resolvedAdmin = me === undefined ? undefined : !!me?.isAdmin;
   const listAdminRef = useRef<boolean | undefined>(undefined);
+  const wantedAdminRef = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     if (resolvedAdmin === undefined) return;
-    if (listAdminRef.current === undefined) {
+    if (wantedAdminRef.current === undefined) {
+      wantedAdminRef.current = resolvedAdmin;
       listAdminRef.current = resolvedAdmin;
       return;
     }
-    if (listAdminRef.current === resolvedAdmin) return;
-    const controller = new AbortController();
-    void loadImages(controller.signal, false).then(() => {
-      if (!controller.signal.aborted) listAdminRef.current = resolvedAdmin;
+    if (wantedAdminRef.current === resolvedAdmin) return;
+    wantedAdminRef.current = resolvedAdmin;
+    void loadImages().then((applied) => {
+      if (applied) listAdminRef.current = resolvedAdmin;
+      else if (wantedAdminRef.current === resolvedAdmin) wantedAdminRef.current = listAdminRef.current;
     });
-    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedAdmin]); // loadImages reads the latest selection/list through refs
 
@@ -166,10 +169,12 @@ const MapPage: React.FC = () => {
   // Sync modal state when URL changes (browser back/forward navigation)
   // `images` must be loaded before we can resolve image IDs
   useEffect(() => {
+    // Once the URL has left the photo a reload closed, forget it — even with an empty list — so a later visit to
+    // that id is handled like any other unknown id.
+    if (!rawImageId || extractImageId(rawImageId) !== closedIdRef.current) closedIdRef.current = null;
     if (images.length === 0) return;
 
     if (!rawImageId) {
-      closedIdRef.current = null;
       // Syncing local modal state to a router-owned URL param, not deriving state from props.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedImage(null);
