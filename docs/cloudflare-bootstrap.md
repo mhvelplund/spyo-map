@@ -265,6 +265,8 @@ irreversible.** Uploaders and `originals/` are kept.
    npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "DELETE FROM images; DELETE FROM uploads;"
    ```
 
+   Admin position corrections (`image_overrides`, keyed by content hash) survive this reset. To drop them too, add
+   `DELETE FROM image_overrides;` to the command.
 2. Delete everything under `images/` in `spyo-map` and under `raw/` and `failed/` in `spyo-map-private`, with
    `npx wrangler r2 object delete --remote <bucket>/<key>` per object or the dashboard bulk delete
    (**R2 → <bucket> → Objects**).
@@ -282,6 +284,7 @@ To rebuild the gallery after a wipe, without uploading again:
    ```
 
    Delete everything under `images/` in the dashboard (**R2 → spyo-map → Objects**). Leave `originals/` in `spyo-map-private` alone.
+   Keep `image_overrides`: it holds admin corrections keyed by content hash and reapplies them to the re-ingested rows.
 2. Run **Ingest Photos** manually with **source = originals**.
 
 In this mode the extractor reads `spyo-map-private/originals/` and never moves or deletes anything there. Failures are only logged. Each
