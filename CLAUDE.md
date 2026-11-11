@@ -64,6 +64,8 @@ R2 bucket layout (two buckets; unprocessed photos keep full EXIF, so they must n
 spyo-map/                ← PUBLIC via spyo-img.isntall.net (custom domain serves the whole bucket)
 ├── images/              ← processed full-size
 │   └── thumbnails/      ← thumbnails
+├── private/             ← hidden images, random 64-hex names
+│   └── thumbnails/      ← hidden images' thumbnails
 
 spyo-map-private/        ← NO custom domain, NO r2.dev; Worker `BUCKET` binding + extractor only
 ├── raw/                 ← uploads land here; moved to originals/ after ingest

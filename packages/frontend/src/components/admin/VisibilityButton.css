@@ -1,0 +1,19 @@
+.visibility-button {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+  background: transparent;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.visibility-button:hover,
+.visibility-button:focus-visible {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.visibility-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

@@ -19,8 +19,10 @@ import './MapPage.css';
 
 // Admin-only: keep it out of the main bundle.
 const MoveAccept = lazy(() => import('./admin/MoveAccept'));
+const VisibilityButton = lazy(() => import('./admin/VisibilityButton'));
 
 const SAVE_ERROR = "Couldn't save the new position.";
+const VISIBILITY_ERROR = "Couldn't change visibility.";
 const TOAST_MS = 3000;
 
 const MapPage: React.FC = () => {
@@ -38,6 +40,7 @@ const MapPage: React.FC = () => {
   const [move, dispatchMove] = useReducer(moveReducer, null);
   // `id` changes on every show, so a repeat of the same message restarts the timer.
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const isAdmin = !!me?.isAdmin;
 
   // useRef fields — mutations do NOT trigger re-renders
@@ -198,6 +201,26 @@ const MapPage: React.FC = () => {
       .finally(() => dispatchMove({ type: 'settled' }));
   }, [move]);
 
+  // Hide/unhide the open photo. The API returns every record sharing its content hash (new URLs, `hidden` flag).
+  const handleToggleHidden = useCallback(() => {
+    if (!selectedImage || visibilityBusy) return;
+    setVisibilityBusy(true);
+    apiClient
+      .setHidden(selectedImage.id, !selectedImage.hidden)
+      .then((updated) => {
+        const byId = new Map(updated.map(img => [img.id, img]));
+        const merge = (img: ImageRecord) => byId.get(img.id) ?? img;
+        setImages(prev => prev.map(merge));
+        setNearbyGroup(prev => prev.map(merge));
+        setSelectedImage(prev => (prev ? merge(prev) : prev));
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to change image visibility:', err);
+        setToast(prev => ({ id: (prev?.id ?? 0) + 1, text: VISIBILITY_ERROR }));
+      })
+      .finally(() => setVisibilityBusy(false));
+  }, [selectedImage, visibilityBusy]);
+
   // Escape discards a pending move; only listen while there is one.
   const hasMove = move !== null;
   useEffect(() => {
@@ -316,6 +339,11 @@ const MapPage: React.FC = () => {
         onClose={handleCloseModal}
         onNavigate={handleNavigate}
         onImageNavigated={handleImageNavigated}
+        adminActions={isAdmin && selectedImage ? (
+          <Suspense fallback={null}>
+            <VisibilityButton image={selectedImage} busy={visibilityBusy} onToggle={handleToggleHidden} />
+          </Suspense>
+        ) : undefined}
       />
     </div>
   );

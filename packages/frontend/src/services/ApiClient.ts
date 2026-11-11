@@ -43,6 +43,19 @@ export class ApiClient {
     }
     return response.json() as Promise<ImageRecord[]>;
   }
+
+  /** Admin: hide or unhide an image. Returns every record sharing its content hash. */
+  async setHidden(id: string, hidden: boolean): Promise<ImageRecord[]> {
+    const action = hidden ? 'hide' : 'unhide';
+    const response = await fetch(`${API_BASE_URL}/api/images/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to ${action} image: ${response.statusText}`);
+    }
+    return response.json() as Promise<ImageRecord[]>;
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -120,3 +120,31 @@ describe('setImageLocation', () => {
     await expect(client.setImageLocation('img1', 1, 2)).rejects.toThrow();
   });
 });
+
+describe('setHidden', () => {
+  it('POSTs /hide with same-origin credentials and returns the records', async () => {
+    const hidden = { ...FIXTURE, hidden: true, imageUrl: 'http://test/private/x.jpg' };
+    fetchSpy.mockResolvedValue(makeResponse([hidden]));
+    const result = await client.setHidden('a/b', true);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/a%2Fb/hide', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([hidden]);
+  });
+
+  it('POSTs /unhide when hidden is false', async () => {
+    fetchSpy.mockResolvedValue(makeResponse([FIXTURE]));
+    const result = await client.setHidden('img1', false);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/img1/unhide', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([FIXTURE]);
+  });
+
+  it('rejects on 500', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'boom' }, 500));
+    await expect(client.setHidden('img1', true)).rejects.toThrow();
+  });
+});

@@ -5,12 +5,19 @@ import { toTransform } from '../utils/zoom';
 import './ImageModal.css';
 import SocialShare from './SocialShare';
 
-const ImageModal: React.FC<ImageModalProps> = ({
+/** Frontend-only extension: React types stay out of the shared package. */
+export interface LightboxProps extends ImageModalProps {
+  /** Admin controls (e.g. Hide/Unhide) rendered in the lightbox toolbar; ImageModal itself has no admin logic. */
+  adminActions?: React.ReactNode;
+}
+
+const ImageModal: React.FC<LightboxProps> = ({
   image,
   nearbyImages,
   isOpen,
   onClose,
   onNavigate,
+  adminActions,
   // onImageNavigated prop is accepted but not currently used by this component.
   // It's called by MapPage when navigation occurs to trigger map recentering.
 }) => {
@@ -245,6 +252,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           <div className="image-metadata">
             <h2 id={modalTitleId} className="image-title">
               Photo taken on {imageDate}
+              {image.hidden && <span className="image-hidden-label">Hidden</span>}
             </h2>
             <div className="image-details">
               <span className="image-time">{imageTime}</span>
@@ -271,6 +279,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
               imageUrl={`/#/image/${image.id}`}
               imageTitle={`Photo taken on ${imageDate} at ${imageTime}`}
             />
+
+            {adminActions && <div className="image-admin-actions">{adminActions}</div>}
           </div>
         </div>
       </div>

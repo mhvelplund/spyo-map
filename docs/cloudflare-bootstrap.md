@@ -42,9 +42,12 @@ npx wrangler r2 bucket create spyo-map
 npx wrangler r2 bucket create spyo-map-private
 ```
 
-- `spyo-map` is **public** and holds only processed images (`images/`, `images/thumbnails/`).
+- `spyo-map` is **public** and holds only processed images (`images/`, `images/thumbnails/`, and hidden images under
+  `private/` with random 64-hex names). The Worker reaches it through its `PUBLIC_BUCKET` binding, only to copy objects
+  between keys when an admin hides or unhides an image.
 - `spyo-map-private` holds `raw/`, `failed/` and `originals/`: untouched photos with their full EXIF. **Never attach a
-  custom domain to it or enable its `r2.dev` subdomain.** Only the Worker binding and the extractor's API token reach it.
+  custom domain to it or enable its `r2.dev` subdomain.** Only the Worker's `BUCKET` binding and the extractor's API
+  token reach it.
 
 ## 2. Attach the images custom domain
 
@@ -256,8 +259,8 @@ release; no result has been recorded yet.
 ## Release reset
 
 Run once, on **PRODUCTION**, to start the public site from an empty gallery. **This wipes the D1 `images` and `uploads`
-tables, every `images/` object in `spyo-map` and every `raw/` and `failed/` object in `spyo-map-private`. It is
-irreversible.** Uploaders and `originals/` are kept.
+tables, every `images/` and `private/` object in `spyo-map` and every `raw/` and `failed/` object in
+`spyo-map-private`. It is irreversible.** Uploaders and `originals/` are kept.
 
 1. Clear the tables:
 
@@ -267,8 +270,8 @@ irreversible.** Uploaders and `originals/` are kept.
 
    Admin position corrections (`image_overrides`, keyed by content hash) survive this reset. To drop them too, add
    `DELETE FROM image_overrides;` to the command.
-2. Delete everything under `images/` in `spyo-map` and under `raw/` and `failed/` in `spyo-map-private`, with
-   `npx wrangler r2 object delete --remote <bucket>/<key>` per object or the dashboard bulk delete
+2. Delete everything under `images/` and `private/` in `spyo-map` and under `raw/` and `failed/` in `spyo-map-private`,
+   with `npx wrangler r2 object delete --remote <bucket>/<key>` per object or the dashboard bulk delete
    (**R2 → <bucket> → Objects**).
 3. Re-upload through `/#/upload`.
 4. Run the **Ingest Photos** workflow.

@@ -206,7 +206,7 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
 
       const icon = L.divIcon({
         className: '',
-        html: `<div class="photo-marker" style="
+        html: `<div class="photo-marker${image.hidden ? ' marker-hidden' : ''}" style="
             width: 60px;
             height: 60px;
             border-radius: 50%;
