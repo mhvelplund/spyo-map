@@ -19,7 +19,13 @@ function setup() {
   const { db, raw } = sqliteD1();
   const store = new Map<string, { data: Uint8Array; meta: unknown }>();
   const log: Op[] = [];
+  const hooks: { afterPut?: (n: number) => Promise<void>; failDeleteAt?: number } = {};
+  let puts = 0;
+  let deletes = 0;
   const bucket = {
+    async head(key: string) {
+      return store.has(key) ? { key } : null;
+    },
     async get(key: string) {
       log.push({ op: 'get', key });
       const o = store.get(key);
@@ -30,8 +36,12 @@ function setup() {
       log.push({ op: 'put', key });
       const data = new Uint8Array(value as ArrayBuffer);
       store.set(key, { data, meta: opts?.httpMetadata });
+      puts += 1;
+      await hooks.afterPut?.(puts);
     },
     async delete(key: string) {
+      deletes += 1;
+      if (hooks.failDeleteAt === deletes) throw new Error('boom');
       const row = raw.prepare('SELECT hidden, private_name FROM image_overrides').get();
       log.push({ op: 'delete', key, hidden: row });
       store.delete(key);
@@ -49,7 +59,7 @@ function setup() {
   const override = () => raw.prepare('SELECT * FROM image_overrides').get() as
     | { hidden: number; private_name: string | null; latitude: number | null }
     | undefined;
-  return { env, raw, store, log, insert, seed, override };
+  return { env, raw, store, log, hooks, insert, seed, override };
 }
 
 const post = (action: string, id = 'a', headers: Record<string, string> = { origin: ORIGIN }, method = 'POST') =>
@@ -118,13 +128,71 @@ describe('hide', () => {
     expect(s.store.has('images/a.jpg')).toBe(false);
   });
 
-  it('409s when already hidden, without R2 writes', async () => {
+  it('retries after a failed delete and leaves no public objects', async () => {
+    const s = setup();
+    s.insert('a', 'h1');
+    s.seed('a');
+    s.hooks.failDeleteAt = 2;
+    const first = await handleApiRequest(post('hide'), s.env);
+    expect(first.status).toBe(500);
+    expect(s.override()!.hidden).toBe(1);
+    expect(s.store.has('images/a.jpg') || s.store.has('images/thumbnails/a.jpg')).toBe(true);
+    const retry = await handleApiRequest(post('hide'), s.env);
+    expect(retry.status).toBe(200);
+    expect([...s.store.keys()].filter((k) => k.startsWith('images/'))).toEqual([]);
+  });
+
+  it('hide on a fully hidden image is 200 with no new puts', async () => {
     const { s } = await hidden();
+    s.log.length = 0;
+    const res = await handleApiRequest(post('hide'), s.env);
+    expect(res.status).toBe(200);
+    expect(s.log.filter((o) => o.op === 'put')).toEqual([]);
+  });
+
+  it('409s Already hidden when the private copy is missing, without deleting', async () => {
+    const { s } = await hidden();
+    s.store.delete(`private/${s.override()!.private_name}.jpg`);
+    s.seed('a');
     s.log.length = 0;
     const res = await handleApiRequest(post('hide'), s.env);
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'Already hidden' });
     expect(s.log.filter((o) => o.op !== 'get')).toEqual([]);
+  });
+
+  it('409s Image files missing and leaves no override when nothing can be copied', async () => {
+    const s = setup();
+    s.insert('a', 'h1');
+    const res = await handleApiRequest(post('hide'), s.env);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Image files missing' });
+    expect(s.override()).toBeUndefined();
+  });
+
+  it('two interleaved hides end with the override pointing at existing objects', async () => {
+    const s = setup();
+    s.insert('a', 'h1');
+    s.seed('a');
+    let fired = false;
+    let second: Promise<Response> | undefined;
+    s.hooks.afterPut = async (n) => {
+      if (n === 2 && !fired) {
+        fired = true;
+        // Second request runs fully after the first's copies, before its setHidden.
+        second = handleApiRequest(post('hide'), s.env);
+        await second;
+      }
+    };
+    const first = await handleApiRequest(post('hide'), s.env);
+    expect(first.status).toBe(200);
+    expect((await second!).status).toBe(200);
+    const o = s.override()!;
+    expect(o.hidden).toBe(1);
+    expect(s.store.has(`private/${o.private_name}.jpg`)).toBe(true);
+    expect(s.store.has(`private/thumbnails/${o.private_name}.jpg`)).toBe(true);
+    expect([...s.store.keys()].filter((k) => k.startsWith('images/'))).toEqual([]);
+    expect([...s.store.keys()].filter((k) => k.startsWith('private/'))).toHaveLength(2);
   });
 });
 
@@ -145,6 +213,7 @@ describe('unhide', () => {
       expect(s.store.has(`images/thumbnails/${id}.jpg`)).toBe(true);
     }
     expect([...s.store.keys()].filter((k) => k.startsWith('private/'))).toEqual([]);
+    expect(s.store.get('images/a.jpg')!.meta).toEqual({ contentType: 'image/jpeg' });
     expect(s.override()).toMatchObject({ hidden: 0, private_name: null });
     const firstDelete = s.log.findIndex((o) => o.op === 'delete');
     expect(s.log.map((o) => o.op).lastIndexOf('put')).toBeLessThan(firstDelete);

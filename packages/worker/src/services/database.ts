@@ -121,18 +121,24 @@ export async function setImageLocation(
     .run();
 }
 
+/**
+ * Upsert hidden state. Hiding (non-null name) only wins while the row is not already hidden, so of two concurrent
+ * hides exactly one sets the name. Returns whether a row was written.
+ */
 export async function setHidden(
   db: D1Database,
   contentHash: string,
   privateName: string | null,
   now: string,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const guard = privateName === null ? "" : " WHERE image_overrides.hidden = 0";
+  const result = await db
     .prepare(
-      "INSERT INTO image_overrides (content_hash, hidden, private_name, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET hidden = excluded.hidden, private_name = excluded.private_name, updated_at = excluded.updated_at",
+      `INSERT INTO image_overrides (content_hash, hidden, private_name, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET hidden = excluded.hidden, private_name = excluded.private_name, updated_at = excluded.updated_at${guard}`,
     )
     .bind(contentHash, privateName === null ? 0 : 1, privateName, now)
     .run();
+  return (result.meta?.changes ?? 0) > 0;
 }
 
 export async function findOverride(

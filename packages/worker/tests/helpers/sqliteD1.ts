@@ -35,8 +35,8 @@ export function sqliteD1(): { db: D1Database; raw: DatabaseSyncType } {
       }),
       first: async () => (raw.prepare(sql).get(...params) as Record<string, unknown>) ?? null,
       run: async () => {
-        raw.prepare(sql).run(...params);
-        return { success: true };
+        const r = raw.prepare(sql).run(...params);
+        return { success: true, meta: { changes: Number(r.changes) } };
       },
     };
     return stmt;
