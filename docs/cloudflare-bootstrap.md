@@ -196,6 +196,14 @@ npm run images -- remove <imageId> --remote
 
 `images remove` deletes the D1 row and the R2 objects `images/<imageId>.jpg` and `images/thumbnails/<imageId>.jpg`.
 
+## Admins
+
+Admin access is the `is_admin` flag on `uploaders` (migration `0003`). Grant it with a remote D1 update, replacing `<id>` with the uploader id:
+
+```bash
+npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "UPDATE uploaders SET is_admin = 1 WHERE id = <id>;"
+```
+
 ## Uploading photos
 
 Sign in at `https://spyo-map.isntall.net/#/upload` with an allow-listed Google account and drop JPEG or TIFF photos
