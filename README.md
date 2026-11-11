@@ -49,6 +49,7 @@ Browser (React + Leaflet)
   │
   └─ <img src="...">  ──▶  R2 (spyo-img.isntall.net, direct, no proxy)
                               ├── raw/          ← drop photos here
+                              ├── originals/    ← untouched originals (private)
                               ├── images/       ← processed full-size
                               └── thumbnails/
 ```
@@ -137,6 +138,7 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 | `CLOUDFLARE_API_TOKEN`  | yes      | Token with D1 Edit                              |
 | `D1_DATABASE_ID`        | yes      | Database id from `wrangler d1 create`           |
 | `LOCAL_SOURCE_PATH`     | no       | Ingest from a local folder instead of `raw/`    |
+| `SOURCE_PREFIX`         | no       | `raw/` (default) or `originals/` to re-ingest   |
 
 ## Production deployment
 
@@ -145,7 +147,9 @@ frontend, then `wrangler deploy`. Photo ingestion runs on a schedule and on dema
 `docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and GitHub
 repository secrets).
 
-The `raw/` prefix should remain private; only `images/` and `images/thumbnails/` need public read.
+The `raw/`, `originals/` and `failed/` prefixes must remain private; only `images/` and `images/thumbnails/` need
+public read. The custom domain exposes the whole bucket, so a WAF rule blocks every other path (see
+`docs/cloudflare-bootstrap.md`).
 
 ## API
 

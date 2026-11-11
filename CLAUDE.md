@@ -50,9 +50,9 @@ npm workspaces monorepo, five runtime packages plus a smoke-test package:
   the `ASSETS` binding and answers `/api/*` from the `DB` (D1) binding via `src/services/database.ts`. Never proxies
   image bytes; constructs `imageUrl`/`thumbnailUrl` from the `IMAGES_BASE_URL` var. Config lives in `wrangler.toml`; the
   D1 schema lives in `migrations/`.
-- **`packages/extractor`** — One-shot CLI ingestion job, run by GitHub Actions. Reads photos from `raw/` in R2 or a
-  local folder (`LOCAL_SOURCE_PATH`), extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads
-  to `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
+- **`packages/extractor`** — One-shot CLI ingestion job, run by GitHub Actions. Reads photos from `raw/` in R2
+  (or `originals/` with `SOURCE_PREFIX=originals/` to re-ingest after a wipe) or a local folder (`LOCAL_SOURCE_PATH`),
+  extracts GPS EXIF with `exifr`, resizes with `sharp` (`src/processor.ts`), uploads to `images/` and `images/thumbnails/` (`src/storage.ts`), then upserts metadata into D1 (`src/d1.ts`).
 - **`packages/admin`** — Admin CLI (`npm run uploaders|uploads|images`, add `--remote` for production) that manages the
   upload allow-list and removes images via wrangler D1/R2 commands.
 - **`packages/smoke-test`** — standalone Jest package, no source, just tests. Runs against a deployed `SMOKE_BASE_URL`
@@ -61,7 +61,8 @@ npm workspaces monorepo, five runtime packages plus a smoke-test package:
 R2 bucket layout:
 ```
 spyo-map/
-├── raw/                 ← upload source photos here (private; deleted after ingest)
+├── raw/                 ← upload source photos here (private; moved to originals/ after ingest)
+├── originals/           ← untouched ingested originals, full EXIF (private; source for re-ingest)
 ├── failed/              ← objects the extractor rejected (private; retry or delete)
 ├── images/              ← processed full-size (public via spyo-img.isntall.net)
 │   └── thumbnails/      ← thumbnails (public)

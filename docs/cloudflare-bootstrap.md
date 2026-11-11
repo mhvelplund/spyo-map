@@ -56,6 +56,16 @@ curl -I https://spyo-img.isntall.net/images/thumbnails/anything.jpg
 
 Expect 404 (the bucket is empty) rather than a TLS or DNS error.
 
+A custom domain serves **every** object in the bucket, not just `images/`. `raw/`, `failed/` and `originals/` hold
+untouched photos with their full EXIF, so block everything else on this host. Go to **Security → WAF → Custom rules →
+Create rule** on the `isntall.net` zone, and set the expression to
+`(http.host eq "spyo-img.isntall.net" and not starts_with(http.request.uri.path, "/images/"))`, with action **Block**.
+Verify:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://spyo-img.isntall.net/originals/anything.jpg   # expect 403
+```
+
 ## 3. Create the D1 database
 
 ```bash
@@ -201,7 +211,10 @@ uploader 1:
 npx wrangler r2 object put spyo-map/raw/IMG_1234.jpg --file ./IMG_1234.jpg --remote
 ```
 
-The extractor deletes each `raw/` object once its metadata is committed to D1.
+Once its metadata is committed to D1, the extractor moves each `raw/` object, byte for byte and with its metadata, to
+`originals/` (same file name). `originals/` is the private archive that a re-ingest replays (see
+[Re-ingesting from originals](#re-ingesting-from-originals)). If the move fails, the object stays in `raw/`, and the
+next run moves it without processing it again.
 
 ### `failed/`
 
@@ -238,6 +251,22 @@ tables and every R2 object under `raw/`, `failed/` and `images/`. It is irrevers
    spyo-map/<key>` per object, or use the dashboard bulk delete (**R2 → spyo-map → Objects**).
 3. Re-upload through `/#/upload`.
 4. Run the **Ingest Photos** workflow.
+
+## Re-ingesting from originals
+
+To rebuild the gallery after a wipe, without uploading again:
+
+1. Clear the image rows and the processed images:
+
+   ```bash
+   npx wrangler d1 execute spyo-map --remote --config packages/worker/wrangler.toml --command "DELETE FROM images;"
+   ```
+
+   Delete everything under `images/` in the dashboard (**R2 → spyo-map → Objects**). Leave `originals/` alone.
+2. Run **Ingest Photos** manually with **source = originals**.
+
+In this mode the extractor reads `originals/` and never moves or deletes anything there. Failures are only logged. Each
+original gets the same image id it had when first ingested from `raw/`, so shared `/#/image/<id>` links keep working.
 
 ## Release checklist
 

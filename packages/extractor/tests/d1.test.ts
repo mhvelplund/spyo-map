@@ -16,6 +16,7 @@ const CONFIG: Config = {
   storageSecretKey: 'secret',
   storageRegion: 'auto',
   localSourcePath: undefined,
+  sourcePrefix: 'raw/',
   cloudflareAccountId: 'acct123',
   cloudflareApiToken: 'token123',
   d1DatabaseId: 'db123',
