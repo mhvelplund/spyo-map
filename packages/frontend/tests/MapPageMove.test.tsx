@@ -131,14 +131,49 @@ describe('MapPage admin move', () => {
   });
 
   it('accept failure snaps back and shows a toast', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      asAdmin();
+      api.setImageLocation.mockRejectedValue(new Error('nope'));
+      await renderPage();
+      fireEvent.click(await dropAndWaitForAccept());
+      expect(await screen.findByText("Couldn't save the new position.")).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Save new position' })).not.toBeInTheDocument();
+      expect(props().pendingMove).toBeNull();
+      expect(props().images).toEqual([imageA]);
+      expect(errorSpy).toHaveBeenCalledWith('Failed to save image location:', expect.anything());
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('is not editable while a save is in flight', async () => {
     asAdmin();
-    api.setImageLocation.mockRejectedValue(new Error('nope'));
+    api.setImageLocation.mockReturnValue(new Promise<ImageRecord[]>(() => {}));
     await renderPage();
     fireEvent.click(await dropAndWaitForAccept());
-    expect(await screen.findByText("Couldn't save the new position.")).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save new position' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save new position' })).toBeDisabled();
+    expect(props().editable).toBe(false);
+  });
+
+  it('losing admin discards a pending move and brings the album fab back', async () => {
+    asAdmin();
+    const view = render(
+      <MemoryRouter initialEntries={['/map']}>
+        <MapPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: 'drop a' });
+    await dropAndWaitForAccept();
+    session.useSession.mockReturnValue({ me: { displayName: 'U', isAdmin: false }, signOut: async () => {} });
+    view.rerender(
+      <MemoryRouter initialEntries={['/map']}>
+        <MapPage />
+      </MemoryRouter>,
+    );
     expect(props().pendingMove).toBeNull();
-    expect(props().images).toEqual([imageA]);
+    expect(props().editable).toBeFalsy();
+    expect(screen.getByRole('button', { name: 'Open photo album' })).toBeInTheDocument();
   });
 
   it('Escape discards a pending move without calling the API', async () => {
@@ -166,5 +201,60 @@ describe('MapPage admin move', () => {
     await dropAndWaitForAccept();
     act(() => props().onMapClick?.());
     expect(props().pendingMove).toBeNull();
+  });
+});
+
+describe('MapPage admin move toast', () => {
+  const TOAST = "Couldn't save the new position.";
+  let errorSpy: ReturnType<typeof jest.spyOn>;
+
+  // The lazy MoveAccept chunk is already resolved by the suite above, so no real-timer waiting is needed here.
+  const flush = () => act(async () => { await jest.advanceTimersByTimeAsync(0); });
+  const advance = (ms: number) => act(async () => { await jest.advanceTimersByTimeAsync(ms); });
+  const failOnce = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'drop a' }));
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Save new position' }));
+    await flush();
+  };
+
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    lastProps = null;
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.useFakeTimers();
+    asAdmin();
+    api.getAllImages.mockResolvedValue([imageA]);
+    api.setImageLocation.mockRejectedValue(new Error('nope'));
+    render(
+      <MemoryRouter initialEntries={['/map']}>
+        <MapPage />
+      </MemoryRouter>,
+    );
+    await flush();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    errorSpy.mockRestore();
+  });
+
+  it('clears after 3s', async () => {
+    await failOnce();
+    expect(screen.getByText(TOAST)).toBeInTheDocument();
+    await advance(2999);
+    expect(screen.getByText(TOAST)).toBeInTheDocument();
+    await advance(1);
+    expect(screen.queryByText(TOAST)).not.toBeInTheDocument();
+  });
+
+  it('restarts the 3s timer on a repeat identical failure', async () => {
+    await failOnce();
+    await advance(2000);
+    await failOnce();
+    await advance(2000);
+    expect(screen.getByText(TOAST)).toBeInTheDocument();
+    await advance(1000);
+    expect(screen.queryByText(TOAST)).not.toBeInTheDocument();
   });
 });

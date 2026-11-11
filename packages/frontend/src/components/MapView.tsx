@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { GeoLocation, ImageRecord, MapViewProps } from '../types';
 import dotIcon from '../assets/dot.png';
-import { LONG_PRESS_MS, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
+import { LONG_PRESS_MS, MOVE_TOLERANCE_PX, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
 import './MapContainer.css';
 
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.006];
@@ -46,9 +46,13 @@ interface MarkerEntry {
   image: ImageRecord;
 }
 
-/** Swallow the click the browser sends after a lifted marker is dropped, so it neither opens the photo nor discards. */
-function suppressNextClick(): void {
+/**
+ * Swallow the click the browser sends after a lifted marker is released, so it neither opens the photo nor discards.
+ * Only a click on that marker's element counts; anything else passes through.
+ */
+function suppressNextClick(el: HTMLElement): void {
   const stop = (e: MouseEvent) => {
+    if (!(e.target instanceof Node) || !el.contains(e.target)) return;
     e.stopPropagation();
     e.preventDefault();
     window.removeEventListener('click', stop, true);
@@ -89,6 +93,11 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       let timer: ReturnType<typeof setTimeout> | undefined;
       let pointerId = -1;
       let restoreDragging = false;
+      // Last pointer position seen, and where it was when the marker lifted (for the "didn't really move" check).
+      let lastX = 0;
+      let lastY = 0;
+      let liftX = 0;
+      let liftY = 0;
 
       const send = (event: PressEvent) => {
         press = pressReducer(press, event);
@@ -102,6 +111,8 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
         restoreDragging = map.dragging.enabled();
         map.dragging.disable(); // also ends the map pan Leaflet started on pointerdown
         marker.fire('dragstart'); // markercluster: don't re-cluster on every move until 'dragend'
+        liftX = lastX;
+        liftY = lastY;
         el.classList.add('marker-lifted');
         try { el.setPointerCapture(pointerId); } catch { /* pointer already gone */ }
         abortLiftRef.current = () => land(false);
@@ -124,6 +135,8 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
         if (!latest.current.editable || image.editable === false) return;
         if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
         pointerId = e.pointerId;
+        lastX = e.clientX;
+        lastY = e.clientY;
         clearTimeout(timer);
         send({ type: 'down', x: e.clientX, y: e.clientY });
         timer = setTimeout(() => {
@@ -133,9 +146,11 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
       });
       el.addEventListener('pointermove', (e) => {
         if (e.pointerId !== pointerId) return;
+        lastX = e.clientX;
+        lastY = e.clientY;
         if (press.kind === 'armed') {
           stop(e);
-          marker.setLatLng(map.mouseEventToLatLng(e));
+          marker.setLatLng(map.mouseEventToLatLng(e).wrap());
         } else {
           send({ type: 'move', x: e.clientX, y: e.clientY });
         }
@@ -147,10 +162,15 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
           return;
         }
         stop(e);
-        const { lat, lng } = map.mouseEventToLatLng(e);
+        suppressNextClick(el);
+        // Lifted but released (almost) where it was picked up: not a move, so put it back and record nothing.
+        if (Math.hypot(e.clientX - liftX, e.clientY - liftY) < MOVE_TOLERANCE_PX) {
+          land(false);
+          return;
+        }
+        const { lat, lng } = map.mouseEventToLatLng(e).wrap();
         marker.setLatLng([lat, lng]);
         land(true);
-        suppressNextClick();
         latest.current.onMarkerDrop?.(image.id, { lat, lng });
       });
       const cancel = (e: PointerEvent) => {

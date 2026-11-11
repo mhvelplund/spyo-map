@@ -36,7 +36,8 @@ const MapPage: React.FC = () => {
   const [showAlbum] = useState(canOpenGallery);
   const [userPosition, setUserPosition] = useState<GeoLocation | null>(null);
   const [move, dispatchMove] = useReducer(moveReducer, null);
-  const [toast, setToast] = useState<string | null>(null);
+  // `id` changes on every show, so a repeat of the same message restarts the timer.
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const isAdmin = !!me?.isAdmin;
 
   // useRef fields — mutations do NOT trigger re-renders
@@ -192,7 +193,7 @@ const MapPage: React.FC = () => {
       })
       .catch((err: unknown) => {
         console.error('Failed to save image location:', err);
-        setToast(SAVE_ERROR);
+        setToast(prev => ({ id: (prev?.id ?? 0) + 1, text: SAVE_ERROR }));
       })
       .finally(() => dispatchMove({ type: 'settled' }));
   }, [move]);
@@ -207,6 +208,11 @@ const MapPage: React.FC = () => {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [hasMove]);
+
+  // Signing out (or losing admin) mid-move drops the move so the marker snaps back and the album FAB returns.
+  useEffect(() => {
+    if (!isAdmin && hasMove) dispatchMove({ type: 'discard' });
+  }, [isAdmin, hasMove]);
 
   useEffect(() => {
     if (!toast) return;
@@ -298,8 +304,8 @@ const MapPage: React.FC = () => {
       )}
 
       {toast && (
-        <div className="map-toast" role="status">
-          {toast}
+        <div key={toast.id} className="map-toast" role="status">
+          {toast.text}
         </div>
       )}
 
