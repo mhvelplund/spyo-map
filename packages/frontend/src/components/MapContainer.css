@@ -117,3 +117,24 @@
     line-height: 44px;
   }
 }
+
+/* Admin mode: markers can be long-pressed and dragged. Stop the browser (notably Android WebView) from turning a
+   long-press into text selection, an image callout or a native image drag. */
+.map-admin .leaflet-marker-icon {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+
+/* Scale the inner circle: the icon element itself carries Leaflet's positioning transform. */
+.photo-marker {
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.marker-lifted .photo-marker {
+  transform: scale(1.15);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45) !important; /* overrides the inline marker shadow */
+  cursor: grabbing !important;
+}

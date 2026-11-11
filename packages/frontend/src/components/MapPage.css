@@ -109,6 +109,22 @@
   background-color: #3367d6;
 }
 
+/* Transient message above the bottom FAB slot (e.g. a failed admin save). */
+.map-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1100;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(32, 33, 36, 0.92);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .map-header {

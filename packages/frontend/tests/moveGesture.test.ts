@@ -73,6 +73,18 @@ describe('moveReducer', () => {
   it('saving + settled -> null', () => {
     expect(moveReducer(saving, { type: 'settled' })).toBeNull();
   });
+  it('pending(a) + drop(b) -> pending move for b with b from', () => {
+    const bFrom = { lat: 7, lng: 8 };
+    expect(moveReducer(pending, { type: 'drop', imageId: 'b', from: bFrom, to: to2 })).toEqual({
+      imageId: 'b',
+      from: bFrom,
+      to: to2,
+      status: 'pending',
+    });
+  });
+  it('saving + drop unchanged', () => {
+    expect(moveReducer(saving, { type: 'drop', imageId: 'b', from: to, to: to2 })).toBe(saving);
+  });
   it('null + accept -> null', () => {
     expect(moveReducer(null, { type: 'accept' })).toBeNull();
   });
