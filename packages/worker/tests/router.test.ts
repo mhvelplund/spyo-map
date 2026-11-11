@@ -76,7 +76,7 @@ describe('GET /api/images', () => {
   it('passes the D1 binding and images base URL through', async () => {
     mockQueryAll.mockResolvedValue([]);
     await handleApiRequest(get('/api/images'), env);
-    expect(mockQueryAll).toHaveBeenCalledWith(DB, 'https://img.test');
+    expect(mockQueryAll).toHaveBeenCalledWith(DB, 'https://img.test', { isAdmin: false });
   });
 });
 
@@ -98,7 +98,7 @@ describe('GET /api/images/:id', () => {
   it('decodes a percent-encoded id', async () => {
     mockQueryById.mockResolvedValue(FIXTURE);
     await handleApiRequest(get('/api/images/a%2Fb'), env);
-    expect(mockQueryById).toHaveBeenCalledWith(DB, 'a/b', 'https://img.test');
+    expect(mockQueryById).toHaveBeenCalledWith(DB, 'a/b', 'https://img.test', { isAdmin: false });
   });
 });
 
@@ -108,14 +108,14 @@ describe('GET /api/images/:id/nearby', () => {
     mockQueryNearby.mockResolvedValue([FIXTURE]);
     const res = await handleApiRequest(get('/api/images/abc/nearby'), env);
     expect(res.status).toBe(200);
-    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 1, 'https://img.test');
+    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 1, 'https://img.test', { isAdmin: false });
   });
 
   it('respects an explicit radius', async () => {
     mockQueryById.mockResolvedValue(FIXTURE);
     mockQueryNearby.mockResolvedValue([]);
     await handleApiRequest(get('/api/images/abc/nearby?radius=5'), env);
-    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 5, 'https://img.test');
+    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 5, 'https://img.test', { isAdmin: false });
   });
 
   it('returns 404 when the origin image is unknown', async () => {

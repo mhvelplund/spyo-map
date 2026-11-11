@@ -24,6 +24,8 @@ export interface ImageRecord {
   uploaderName: string;
   /** Present and false only when the image has no content hash, so its position cannot be overridden. */
   editable?: boolean;
+  /** Present and true only for hidden images, which only admins receive. */
+  hidden?: boolean;
 }
 
 export interface AppState {

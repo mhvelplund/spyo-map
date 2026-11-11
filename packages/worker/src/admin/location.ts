@@ -39,5 +39,5 @@ export async function handleSetLocation(
   if (contentHash === null) return respond({ error: "Image cannot be edited" }, 409);
 
   await setImageLocation(env.DB, contentHash, latitude, longitude, new Date().toISOString());
-  return respond(await queryImagesByContentHash(env.DB, contentHash, env.IMAGES_BASE_URL), 200);
+  return respond(await queryImagesByContentHash(env.DB, contentHash, env.IMAGES_BASE_URL, { isAdmin: true }), 200);
 }

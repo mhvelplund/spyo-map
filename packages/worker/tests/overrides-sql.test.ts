@@ -33,7 +33,7 @@ describe('image overrides (real SQL)', () => {
     insertImage(raw, 'a', 10, 20, 'h1');
     insertImage(raw, 'b', 30, 40, 'h2');
     setOverride(raw, 'h1', 11, 21);
-    const all = await queryAllImages(db, BASE);
+    const all = await queryAllImages(db, BASE, { isAdmin: false });
     const a = all.find((r) => r.id === 'a')!;
     const b = all.find((r) => r.id === 'b')!;
     expect([a.latitude, a.longitude]).toEqual([11, 21]);
@@ -46,19 +46,19 @@ describe('image overrides (real SQL)', () => {
     setOverride(raw, 'h1', 11, 21);
     raw.exec('DELETE FROM images');
     insertImage(raw, 'a2', 10, 20, 'h1');
-    const [rec] = await queryAllImages(db, BASE);
+    const [rec] = await queryAllImages(db, BASE, { isAdmin: false });
     expect(rec.id).toBe('a2');
     expect([rec.latitude, rec.longitude]).toEqual([11, 21]);
     raw.exec('DELETE FROM images');
     insertImage(raw, 'a2', 10, 20, 'h1');
-    expect((await queryAllImages(db, BASE))[0].latitude).toBe(11);
+    expect((await queryAllImages(db, BASE, { isAdmin: false }))[0].latitude).toBe(11);
   });
 
   it('marks rows without a content_hash as editable: false only', async () => {
     const { db, raw } = sqliteD1();
     insertImage(raw, 'nohash', 1, 2, null);
     insertImage(raw, 'hash', 3, 4, 'h');
-    const all = await queryAllImages(db, BASE);
+    const all = await queryAllImages(db, BASE, { isAdmin: false });
     expect(all.find((r) => r.id === 'nohash')!.editable).toBe(false);
     expect(all.find((r) => r.id === 'hash')!).not.toHaveProperty('editable');
   });
@@ -68,7 +68,7 @@ describe('image overrides (real SQL)', () => {
     insertImage(raw, 'center', 51.5, -0.12, 'c');
     insertImage(raw, 'moved', 52.5, -0.12, 'm'); // EXIF ~111 km away
     setOverride(raw, 'm', 51.501, -0.12);
-    const near = await queryNearbyImages(db, 'center', 51.5, -0.12, 1, BASE);
+    const near = await queryNearbyImages(db, 'center', 51.5, -0.12, 1, BASE, { isAdmin: false });
     expect(near.map((r) => r.id)).toEqual(['moved']);
   });
 });

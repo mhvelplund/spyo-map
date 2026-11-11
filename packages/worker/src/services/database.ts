@@ -5,14 +5,25 @@ import { haversineKm } from "../utils.js";
 // Effective position = admin override (keyed by content hash) else EXIF. Aliased to eff_* because
 // duplicate column names are ambiguous in D1 result objects.
 const IMAGE_SELECT =
-  "SELECT images.*, COALESCE(o.latitude, images.latitude) AS eff_latitude, COALESCE(o.longitude, images.longitude) AS eff_longitude, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id LEFT JOIN image_overrides o ON o.content_hash = images.content_hash";
+  "SELECT images.*, COALESCE(o.latitude, images.latitude) AS eff_latitude, COALESCE(o.longitude, images.longitude) AS eff_longitude, o.hidden AS hidden, o.private_name AS private_name, uploaders.display_name AS uploader_name FROM images LEFT JOIN uploaders ON uploaders.id = images.uploader_id LEFT JOIN image_overrides o ON o.content_hash = images.content_hash";
+
+export interface Viewer {
+  isAdmin: boolean;
+}
+
+// Non-admins never see hidden rows; admins see everything.
+const visibility = (viewer: Viewer): string => (viewer.isAdmin ? "" : " AND COALESCE(o.hidden, 0) = 0");
 
 export function rowToRecord(row: Record<string, unknown>, baseUrl: string): ImageRecord {
   const id = row.id as string;
+  const hidden = row.hidden === 1 && typeof row.private_name === "string";
   return {
     id,
-    imageUrl: `${baseUrl}/images/${id}.jpg`,
-    thumbnailUrl: `${baseUrl}/images/thumbnails/${id}.jpg`,
+    imageUrl: hidden ? `${baseUrl}/private/${row.private_name}.jpg` : `${baseUrl}/images/${id}.jpg`,
+    thumbnailUrl: hidden
+      ? `${baseUrl}/private/thumbnails/${row.private_name}.jpg`
+      : `${baseUrl}/images/thumbnails/${id}.jpg`,
+    ...(row.hidden === 1 ? { hidden: true } : {}),
     latitude: (row.eff_latitude ?? row.latitude) as number,
     longitude: (row.eff_longitude ?? row.longitude) as number,
     timestamp: (row.timestamp as string | null) ?? "",
@@ -34,8 +45,14 @@ export function rowToRecord(row: Record<string, unknown>, baseUrl: string): Imag
   };
 }
 
-export async function queryAllImages(db: D1Database, baseUrl: string): Promise<ImageRecord[]> {
-  const { results } = await db.prepare(IMAGE_SELECT).all<Record<string, unknown>>();
+export async function queryAllImages(
+  db: D1Database,
+  baseUrl: string,
+  viewer: Viewer,
+): Promise<ImageRecord[]> {
+  const { results } = await db
+    .prepare(`${IMAGE_SELECT} WHERE 1 = 1${visibility(viewer)}`)
+    .all<Record<string, unknown>>();
   return results.map((row) => rowToRecord(row, baseUrl));
 }
 
@@ -43,9 +60,10 @@ export async function queryImageById(
   db: D1Database,
   id: string,
   baseUrl: string,
+  viewer: Viewer,
 ): Promise<ImageRecord | null> {
   const { results } = await db
-    .prepare(`${IMAGE_SELECT} WHERE images.id = ?`)
+    .prepare(`${IMAGE_SELECT} WHERE images.id = ?${visibility(viewer)}`)
     .bind(id)
     .all<Record<string, unknown>>();
   const row = results[0];
@@ -59,9 +77,10 @@ export async function queryNearbyImages(
   lon: number,
   radiusKm: number,
   baseUrl: string,
+  viewer: Viewer,
 ): Promise<ImageRecord[]> {
   const { results } = await db
-    .prepare(`${IMAGE_SELECT} WHERE images.id != ?`)
+    .prepare(`${IMAGE_SELECT} WHERE images.id != ?${visibility(viewer)}`)
     .bind(id)
     .all<Record<string, unknown>>();
 
@@ -106,9 +125,10 @@ export async function queryImagesByContentHash(
   db: D1Database,
   contentHash: string,
   baseUrl: string,
+  viewer: Viewer,
 ): Promise<ImageRecord[]> {
   const { results } = await db
-    .prepare(`${IMAGE_SELECT} WHERE images.content_hash = ?`)
+    .prepare(`${IMAGE_SELECT} WHERE images.content_hash = ?${visibility(viewer)}`)
     .bind(contentHash)
     .all<Record<string, unknown>>();
   return results.map((row) => rowToRecord(row, baseUrl));

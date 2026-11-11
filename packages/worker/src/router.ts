@@ -7,6 +7,7 @@ import {
   queryAllImages,
   queryImageById,
   queryNearbyImages,
+  type Viewer,
 } from "./services/database.js";
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -72,25 +73,30 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
   }
   if (!isGet) return methodNotAllowed();
 
+  // Responses vary by viewer (admins also get hidden images), so never cache them.
+  const noStore = { "cache-control": "private, no-store" };
+  const uploader = await currentUploader(request, env);
+  const viewer: Viewer = { isAdmin: uploader?.isAdmin === true };
+
   if (segments.length === 2) {
-    return json(await queryAllImages(env.DB, env.IMAGES_BASE_URL));
+    return json(await queryAllImages(env.DB, env.IMAGES_BASE_URL, viewer), 200, noStore);
   }
 
-  if (rawId === undefined) return notFound();
+  if (rawId === undefined) return json({ error: "Not found" }, 404, noStore);
   const id = decodeURIComponent(rawId);
 
   if (segments.length === 3) {
-    const image = await queryImageById(env.DB, id, env.IMAGES_BASE_URL);
-    return image ? json(image) : notFound();
+    const image = await queryImageById(env.DB, id, env.IMAGES_BASE_URL, viewer);
+    return image ? json(image, 200, noStore) : json({ error: "Not found" }, 404, noStore);
   }
 
   if (segments.length === 4 && action === "nearby") {
-    const image = await queryImageById(env.DB, id, env.IMAGES_BASE_URL);
-    if (!image) return notFound();
+    const image = await queryImageById(env.DB, id, env.IMAGES_BASE_URL, viewer);
+    if (!image) return json({ error: "Not found" }, 404, noStore);
 
     const radius = parseFloat(url.searchParams.get("radius") ?? "1");
     if (isNaN(radius) || radius < 0) {
-      return json({ error: "Invalid radius" }, 400);
+      return json({ error: "Invalid radius" }, 400, noStore);
     }
 
     return json(
@@ -101,9 +107,12 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
         image.longitude,
         radius,
         env.IMAGES_BASE_URL,
+        viewer,
       ),
+      200,
+      noStore,
     );
   }
 
-  return notFound();
+  return json({ error: "Not found" }, 404, noStore);
 }
