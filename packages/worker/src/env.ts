@@ -5,7 +5,7 @@ export interface Env {
   DB: D1Database;
   /** Static-assets binding declared in wrangler.toml */
   ASSETS: Fetcher;
-  /** R2 bucket (raw/ upload target) declared in wrangler.toml */
+  /** Private R2 bucket (raw/ upload target, never publicly served) declared in wrangler.toml */
   BUCKET: R2Bucket;
   /** Public base URL for image objects, e.g. https://spyo-img.isntall.net */
   IMAGES_BASE_URL: string;

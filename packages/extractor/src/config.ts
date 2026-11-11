@@ -1,6 +1,9 @@
 export interface Config {
   storageEndpoint: string | undefined;
+  /** Public bucket: processed images/ and images/thumbnails/. */
   storageBucket: string;
+  /** Private bucket (no public domain): raw/, failed/ and originals/. */
+  storagePrivateBucket: string;
   storageAccessKey: string | undefined;
   storageSecretKey: string | undefined;
   storageRegion: string;
@@ -33,6 +36,7 @@ export function loadConfig(): Config {
   return {
     storageEndpoint: process.env['STORAGE_ENDPOINT'] || undefined,
     storageBucket: requireEnv('STORAGE_BUCKET'),
+    storagePrivateBucket: requireEnv('STORAGE_PRIVATE_BUCKET'),
     storageAccessKey: process.env['STORAGE_ACCESS_KEY'] || undefined,
     storageSecretKey: process.env['STORAGE_SECRET_KEY'] || undefined,
     storageRegion: process.env['STORAGE_REGION'] ?? 'auto',

@@ -47,6 +47,7 @@ const { runExtractor } = await import('../src/extractor.js');
 const CONFIG: Config = {
   storageEndpoint: 'https://acct.r2.cloudflarestorage.com',
   storageBucket: 'spyo-map',
+  storagePrivateBucket: 'spyo-map-private',
   storageAccessKey: 'key',
   storageSecretKey: 'secret',
   storageRegion: 'auto',
@@ -121,7 +122,7 @@ describe('runExtractor over the bucket source', () => {
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
     await runExtractor(CONFIG, s3, d1);
 
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/a.jpg', 'originals/a.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'originals/a.jpg');
     expect(mockDeleteObject).not.toHaveBeenCalled();
   });
 
@@ -152,7 +153,7 @@ describe('runExtractor over the bucket source', () => {
     await runExtractor(CONFIG, s3, d1);
     expect(mockUpsertImages).toHaveBeenCalledWith(d1, []);
     expect(mockDeleteObject).not.toHaveBeenCalled();
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/a.jpg', 'failed/a.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'failed/a.jpg');
   });
 
   it('leaves the raw object in place when the download returns null', async () => {
@@ -176,7 +177,7 @@ describe('runExtractor over the bucket source', () => {
     expect(rows[0]).toMatchObject({ uploaderId: 7, contentHash: sha, path: 'N\u00f8rrebro.jpg' });
     expect(mockMoveObject).toHaveBeenCalledWith(
       s3,
-      'spyo-map',
+      'spyo-map-private',
       `raw/${sha}.jpg`,
       `originals/${sha}.jpg`,
     );
@@ -210,7 +211,7 @@ describe('runExtractor over the bucket source', () => {
     await runExtractor(CONFIG, s3, d1);
     expect(mockUpsertImages).toHaveBeenCalledWith(d1, []);
     expect(mockDeleteObject).not.toHaveBeenCalled();
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/x.jpg', 'failed/x.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/x.jpg', 'failed/x.jpg');
   });
 
   it('leaves the object in raw/ when putObject rejects', async () => {
@@ -246,7 +247,7 @@ describe('runExtractor over the bucket source', () => {
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
     mockGetObjectWithMetadata.mockResolvedValue({ body: Buffer.from('jpeg'), metadata: { sha256: sha } });
     await runExtractor(CONFIG, s3, d1);
-    expect(mockMoveObject).not.toHaveBeenCalledWith(s3, 'spyo-map', 'raw/a.jpg', 'failed/a.jpg');
+    expect(mockMoveObject).not.toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'failed/a.jpg');
     expect((mockUpsertImages.mock.calls[0]![1] as ImageInsert[])).toHaveLength(1);
   });
 
@@ -254,7 +255,7 @@ describe('runExtractor over the bucket source', () => {
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
     mockProcessImage.mockRejectedValue(new Error('corrupt'));
     await runExtractor(CONFIG, s3, d1);
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/a.jpg', 'failed/a.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'failed/a.jpg');
   });
 
   it('continues past a photo that fails to process', async () => {
@@ -278,7 +279,7 @@ describe('keeping originals', () => {
   it('moves a processed photo to originals/ unchanged instead of deleting it', async () => {
     mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
     await runExtractor(CONFIG, s3, d1);
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/a.jpg', 'originals/a.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'originals/a.jpg');
     expect(mockDeleteObject).not.toHaveBeenCalled();
   });
 
@@ -289,7 +290,7 @@ describe('keeping originals', () => {
     ]);
     mockMoveObject.mockRejectedValueOnce(new Error('R2 503'));
     await expect(runExtractor(CONFIG, s3, d1)).resolves.toBeUndefined();
-    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map', 'raw/b.jpg', 'originals/b.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/b.jpg', 'originals/b.jpg');
   });
 });
 
@@ -299,7 +300,7 @@ describe('runExtractor re-ingesting from originals/', () => {
   it('lists originals/ instead of raw/', async () => {
     mockListObjects.mockResolvedValue([]);
     await runExtractor(REINGEST, s3, d1);
-    expect(mockListObjects).toHaveBeenCalledWith(s3, 'spyo-map', 'originals/');
+    expect(mockListObjects).toHaveBeenCalledWith(s3, 'spyo-map-private', 'originals/');
   });
 
   it('gives an original the same id it got when first ingested from raw/', async () => {
@@ -340,5 +341,26 @@ describe('runExtractor re-ingesting from originals/', () => {
     await runExtractor(REINGEST, s3, d1);
     expect(mockProcessImage).not.toHaveBeenCalled();
     expect(mockMoveObject).not.toHaveBeenCalled();
+  });
+});
+
+describe('bucket split', () => {
+  it('reads and archives in the private bucket and publishes images to the public one', async () => {
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    await runExtractor(CONFIG, s3, d1);
+
+    expect(mockListObjects).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/');
+    expect(mockGetObjectWithMetadata).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg');
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'originals/a.jpg');
+    const putBuckets = mockPutObject.mock.calls.map((c) => c[1]);
+    expect(putBuckets).toEqual(['spyo-map', 'spyo-map']);
+  });
+
+  it('moves failures to failed/ inside the private bucket', async () => {
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    mockExtractExif.mockResolvedValue(null);
+    await runExtractor(CONFIG, s3, d1);
+    expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'failed/a.jpg');
+    expect(mockPutObject).not.toHaveBeenCalled();
   });
 });

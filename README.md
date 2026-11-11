@@ -48,8 +48,6 @@ Browser (React + Leaflet)
   ├─ GET /api/images  ──▶  Cloudflare Worker  ──▶  D1 (spyo-map)
   │
   └─ <img src="...">  ──▶  R2 (spyo-img.isntall.net, direct, no proxy)
-                              ├── raw/          ← drop photos here
-                              ├── originals/    ← untouched originals (private)
                               ├── images/       ← processed full-size
                               └── thumbnails/
 ```
@@ -130,7 +128,8 @@ npx wrangler deploy --config packages/worker/wrangler.toml
 | Name                    | Required | Description                                     |
 |-------------------------|----------|-------------------------------------------------|
 | `STORAGE_ENDPOINT`      | yes      | `https://<account-id>.r2.cloudflarestorage.com` |
-| `STORAGE_BUCKET`        | yes      | `spyo-map`                                      |
+| `STORAGE_BUCKET`        | yes      | `spyo-map` (public; processed images)           |
+| `STORAGE_PRIVATE_BUCKET`| yes      | `spyo-map-private` (raw/, failed/, originals/)  |
 | `STORAGE_ACCESS_KEY`    | yes      | R2 API token access key id                      |
 | `STORAGE_SECRET_KEY`    | yes      | R2 API token secret                             |
 | `STORAGE_REGION`        | no       | Defaults to `auto`                              |
@@ -147,9 +146,8 @@ frontend, then `wrangler deploy`. Photo ingestion runs hourly and on demand (`.g
 `docs/cloudflare-bootstrap.md` for one-time setup (R2 bucket, D1 database, custom domains, API tokens, and GitHub
 repository secrets).
 
-The `raw/`, `originals/` and `failed/` prefixes must remain private; only `images/` and `images/thumbnails/` need
-public read. The custom domain exposes the whole bucket, so a WAF rule blocks every other path (see
-`docs/cloudflare-bootstrap.md`).
+Unprocessed photos (`raw/`, `failed/`, `originals/`) live in a separate `spyo-map-private` bucket with no public
+domain, because they keep their full EXIF. Only the `spyo-map` bucket (`images/`, `images/thumbnails/`) is public.
 
 ## API
 

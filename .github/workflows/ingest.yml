@@ -43,6 +43,7 @@ jobs:
         env:
           STORAGE_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           STORAGE_BUCKET: spyo-map
+          STORAGE_PRIVATE_BUCKET: spyo-map-private
           STORAGE_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
           STORAGE_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           STORAGE_REGION: auto

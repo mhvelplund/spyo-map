@@ -113,7 +113,7 @@ export async function runExtractor(
 
   for (const key of keysToArchive) {
     try {
-      await moveObject(s3, config.storageBucket, key, originalsKey(key));
+      await moveObject(s3, config.storagePrivateBucket, key, originalsKey(key));
       console.log(`Moved to originals/: ${key}`);
     } catch (err) {
       // Left in raw/; the next run sees it as already processed and retries the move.
@@ -123,7 +123,7 @@ export async function runExtractor(
 
   for (const key of keysToFail) {
     try {
-      await moveObject(s3, config.storageBucket, key, failedKey(key));
+      await moveObject(s3, config.storagePrivateBucket, key, failedKey(key));
       console.log(`Moved to failed/: ${key}`);
     } catch (err) {
       console.warn(`Warning: could not move ${key} to failed/:`, err);
@@ -200,8 +200,8 @@ async function processBucketSource(
   existingIds: Set<string>,
 ): Promise<{ rows: ImageInsert[]; keysToArchive: string[]; keysToFail: string[] }> {
   const prefix = config.sourcePrefix;
-  console.log(`Scanning bucket ${config.storageBucket}/${prefix} ...`);
-  const objects = await listObjects(s3, config.storageBucket, prefix);
+  console.log(`Scanning bucket ${config.storagePrivateBucket}/${prefix} ...`);
+  const objects = await listObjects(s3, config.storagePrivateBucket, prefix);
   const imageObjects = objects.filter((o) => {
     const lower = o.key.toLowerCase();
     return SUPPORTED_EXTENSIONS.has(lower.slice(lower.lastIndexOf(".")));
@@ -227,7 +227,7 @@ async function processBucketSource(
     }
 
     try {
-      const downloaded = await getObjectWithMetadata(s3, config.storageBucket, obj.key);
+      const downloaded = await getObjectWithMetadata(s3, config.storagePrivateBucket, obj.key);
       if (!downloaded) {
         console.warn(`  Warning: could not download ${obj.key} — skipping.`);
         continue;
