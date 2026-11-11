@@ -24,6 +24,12 @@
   color: #333;
 }
 
+.map-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .image-count {
   font-size: 14px;
   color: #666;

@@ -12,10 +12,13 @@ import { initialViewBounds } from '../utils/initialView';
 import albumIcon from '../assets/album.png';
 import ImageModal from './ImageModal';
 import MapView from './MapView';
+import HeaderAccount from './HeaderAccount';
+import { useSession } from '../hooks/useSession';
 import './MapPage.css';
 
 const MapPage: React.FC = () => {
   const navigate = useNavigate();
+  const { me, signOut } = useSession();
   const { imageId: rawImageId } = useParams<{ imageId: string }>();
 
   const [images, setImages] = useState<ImageRecord[]>([]);
@@ -184,7 +187,10 @@ const MapPage: React.FC = () => {
     <div className="main-map-view">
       <header className="map-header">
         <h1>Spyo Map</h1>
-        <div className="image-count">{images.length} geo-tagged images</div>
+        <div className="map-header-right">
+          <div className="image-count">{images.length} geo-tagged images</div>
+          <HeaderAccount me={me} onSignOut={signOut} />
+        </div>
       </header>
 
       <div className="map-wrapper">
