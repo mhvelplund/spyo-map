@@ -75,3 +75,41 @@ export async function queryNearbyImages(
     .sort((a, b) => a.dist - b.dist)
     .map(({ record }) => record);
 }
+
+export async function findContentHash(
+  db: D1Database,
+  id: string,
+): Promise<{ found: boolean; contentHash: string | null }> {
+  const row = await db
+    .prepare("SELECT content_hash FROM images WHERE id = ?")
+    .bind(id)
+    .first<{ content_hash: string | null }>();
+  return row ? { found: true, contentHash: row.content_hash } : { found: false, contentHash: null };
+}
+
+export async function setImageLocation(
+  db: D1Database,
+  contentHash: string,
+  latitude: number,
+  longitude: number,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "INSERT INTO image_overrides (content_hash, latitude, longitude, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET latitude = excluded.latitude, longitude = excluded.longitude, updated_at = excluded.updated_at",
+    )
+    .bind(contentHash, latitude, longitude, now)
+    .run();
+}
+
+export async function queryImagesByContentHash(
+  db: D1Database,
+  contentHash: string,
+  baseUrl: string,
+): Promise<ImageRecord[]> {
+  const { results } = await db
+    .prepare(`${IMAGE_SELECT} WHERE images.content_hash = ?`)
+    .bind(contentHash)
+    .all<Record<string, unknown>>();
+  return results.map((row) => rowToRecord(row, baseUrl));
+}

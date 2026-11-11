@@ -10,6 +10,9 @@ jest.unstable_mockModule('../src/services/database.js', () => ({
   queryImageById: mockQueryById,
   queryNearbyImages: mockQueryNearby,
   rowToRecord: jest.fn(),
+  findContentHash: jest.fn(),
+  setImageLocation: jest.fn(),
+  queryImagesByContentHash: jest.fn(),
 }));
 
 const mockFindUploaderById = jest.fn<(db: unknown, id: number) => Promise<unknown>>();
