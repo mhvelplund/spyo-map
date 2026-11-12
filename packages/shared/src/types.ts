@@ -22,6 +22,13 @@ export interface ImageRecord {
   destBearing?: number;
   hPositioningError?: number;
   uploaderName: string;
+  /** Present and false only when the image has no content hash, so its position cannot be overridden. */
+  editable?: boolean;
+  /** Present and true only for hidden images, which only admins receive. */
+  hidden?: boolean;
+  /** Present only for grouped images: the group's id and when this image joined it. */
+  groupId?: string;
+  groupedAt?: string;
 }
 
 export interface AppState {

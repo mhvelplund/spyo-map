@@ -10,6 +10,18 @@ jest.unstable_mockModule('../src/services/database.js', () => ({
   queryImageById: mockQueryById,
   queryNearbyImages: mockQueryNearby,
   rowToRecord: jest.fn(),
+  findContentHash: jest.fn(),
+  setImageLocation: jest.fn(),
+  queryImagesByContentHash: jest.fn(),
+  setHidden: jest.fn(),
+  findOverride: jest.fn(),
+  findGroupId: jest.fn(),
+  queryGroupRecords: jest.fn(),
+  findGroupState: jest.fn(),
+  findGroupMembers: jest.fn(),
+  writeGroup: jest.fn(),
+  writeUngroup: jest.fn(),
+  queryImagesByContentHashes: jest.fn(),
 }));
 
 const mockFindUploaderById = jest.fn<(db: unknown, id: number) => Promise<unknown>>();
@@ -73,7 +85,7 @@ describe('GET /api/images', () => {
   it('passes the D1 binding and images base URL through', async () => {
     mockQueryAll.mockResolvedValue([]);
     await handleApiRequest(get('/api/images'), env);
-    expect(mockQueryAll).toHaveBeenCalledWith(DB, 'https://img.test');
+    expect(mockQueryAll).toHaveBeenCalledWith(DB, 'https://img.test', { isAdmin: false });
   });
 });
 
@@ -95,7 +107,7 @@ describe('GET /api/images/:id', () => {
   it('decodes a percent-encoded id', async () => {
     mockQueryById.mockResolvedValue(FIXTURE);
     await handleApiRequest(get('/api/images/a%2Fb'), env);
-    expect(mockQueryById).toHaveBeenCalledWith(DB, 'a/b', 'https://img.test');
+    expect(mockQueryById).toHaveBeenCalledWith(DB, 'a/b', 'https://img.test', { isAdmin: false });
   });
 });
 
@@ -105,14 +117,14 @@ describe('GET /api/images/:id/nearby', () => {
     mockQueryNearby.mockResolvedValue([FIXTURE]);
     const res = await handleApiRequest(get('/api/images/abc/nearby'), env);
     expect(res.status).toBe(200);
-    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 1, 'https://img.test');
+    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 1, 'https://img.test', { isAdmin: false });
   });
 
   it('respects an explicit radius', async () => {
     mockQueryById.mockResolvedValue(FIXTURE);
     mockQueryNearby.mockResolvedValue([]);
     await handleApiRequest(get('/api/images/abc/nearby?radius=5'), env);
-    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 5, 'https://img.test');
+    expect(mockQueryNearby).toHaveBeenCalledWith(DB, 'abc', 51.5, -0.12, 5, 'https://img.test', { isAdmin: false });
   });
 
   it('returns 404 when the origin image is unknown', async () => {
@@ -169,13 +181,20 @@ describe('GET /api/me', () => {
   });
 
   it('returns the display name for a valid session of an active uploader', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
     const res = await handleApiRequest(me(`spyo_session=${token}`), env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ displayName: 'MH' });
+    expect(await res.json()).toEqual({ displayName: 'MH', isAdmin: true });
     expect(mockFindUploaderById).toHaveBeenCalledWith(DB, 1);
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('returns isAdmin false for a non-admin uploader', async () => {
+    mockFindUploaderById.mockResolvedValue({ id: 2, displayName: 'Bob', isAdmin: false });
+    const token = await signSession({ uploaderId: 2, exp: nowSec() + 60 }, SECRET);
+    const res = await handleApiRequest(me(`spyo_session=${token}`), env);
+    expect(await res.json()).toEqual({ displayName: 'Bob', isAdmin: false });
   });
 
   it('returns 401 for a disabled uploader', async () => {
@@ -186,7 +205,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 for an expired or forged session', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const expired = await signSession({ uploaderId: 1, exp: nowSec() - 1 }, SECRET);
     expect((await handleApiRequest(me(`spyo_session=${expired}`), env)).status).toBe(401);
     const forged = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, 'wrong-session-secret-0123456789abcdef');
@@ -195,7 +214,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 when the session secret is shorter than 32 characters', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     // A token genuinely HMAC-signed with the short key, bypassing signSession's guard.
     const short = 'x'.repeat(31);
     const key = await crypto.subtle.importKey(
@@ -220,7 +239,7 @@ describe('GET /api/me', () => {
   });
 
   it('returns 401 when the session secret is not configured', async () => {
-    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH' });
+    mockFindUploaderById.mockResolvedValue({ id: 1, displayName: 'MH', isAdmin: true });
     const token = await signSession({ uploaderId: 1, exp: nowSec() + 60 }, SECRET);
     const res = await handleApiRequest(me(`spyo_session=${token}`), {
       ...(env as object),

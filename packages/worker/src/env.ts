@@ -7,6 +7,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** Private R2 bucket (raw/ upload target, never publicly served) declared in wrangler.toml */
   BUCKET: R2Bucket;
+  /** Public R2 bucket (processed images); the Worker copies objects inside it to hide/unhide. */
+  PUBLIC_BUCKET: R2Bucket;
   /** Public base URL for image objects, e.g. https://spyo-img.isntall.net */
   IMAGES_BASE_URL: string;
   /** HMAC key for the spyo_session cookie (secret; `wrangler secret put`). Empty means sign-in is off. */

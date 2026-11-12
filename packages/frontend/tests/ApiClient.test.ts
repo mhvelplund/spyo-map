@@ -101,3 +101,87 @@ describe('getNearbyImages', () => {
     await expect(client.getNearbyImages('img1')).rejects.toThrow('Connection refused');
   });
 });
+
+describe('setImageLocation', () => {
+  it('PUTs the encoded URL with JSON body and same-origin credentials', async () => {
+    fetchSpy.mockResolvedValue(makeResponse([FIXTURE]));
+    const result = await client.setImageLocation('a/b', 1.5, 2.5);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/a%2Fb/location', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ latitude: 1.5, longitude: 2.5 }),
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([FIXTURE]);
+  });
+
+  it('rejects on 403', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'Forbidden' }, 403));
+    await expect(client.setImageLocation('img1', 1, 2)).rejects.toThrow();
+  });
+});
+
+describe('setHidden', () => {
+  it('POSTs /hide with same-origin credentials and returns the records', async () => {
+    const hidden = { ...FIXTURE, hidden: true, imageUrl: 'http://test/private/x.jpg' };
+    fetchSpy.mockResolvedValue(makeResponse([hidden]));
+    const result = await client.setHidden('a/b', true);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/a%2Fb/hide', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([hidden]);
+  });
+
+  it('POSTs /unhide when hidden is false', async () => {
+    fetchSpy.mockResolvedValue(makeResponse([FIXTURE]));
+    const result = await client.setHidden('img1', false);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/img1/unhide', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([FIXTURE]);
+  });
+
+  it('rejects on 500', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'boom' }, 500));
+    await expect(client.setHidden('img1', true)).rejects.toThrow();
+  });
+});
+
+describe('groupImages', () => {
+  it('POSTs /group with the target id and returns the records', async () => {
+    const grouped = { ...FIXTURE, groupId: 'g', groupedAt: '2024-01-01T00:00:00.000Z' };
+    fetchSpy.mockResolvedValue(makeResponse([grouped]));
+    const result = await client.groupImages('a/b', 'b');
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/a%2Fb/group', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"targetId":"b"}',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([grouped]);
+  });
+
+  it('rejects on 409', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'conflict' }, 409));
+    await expect(client.groupImages('a', 'b')).rejects.toThrow();
+  });
+});
+
+describe('ungroupImage', () => {
+  it('POSTs /ungroup with same-origin credentials and returns the records', async () => {
+    fetchSpy.mockResolvedValue(makeResponse([FIXTURE]));
+    const result = await client.ungroupImage('img1');
+    expect(fetchSpy).toHaveBeenCalledWith('/api/images/img1/ungroup', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    expect(result).toEqual([FIXTURE]);
+  });
+
+  it('rejects on 409', async () => {
+    fetchSpy.mockResolvedValue(makeResponse({ error: 'conflict' }, 409));
+    await expect(client.ungroupImage('img1')).rejects.toThrow();
+  });
+});

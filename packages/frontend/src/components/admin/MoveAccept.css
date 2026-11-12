@@ -1,0 +1,20 @@
+/* Geometry comes from .fab (index.css); pin the colours so the accept button stays green regardless of .fab. */
+.move-accept {
+  background-color: #2e9e4f;
+  color: #fff;
+}
+
+.move-accept:hover,
+.move-accept:focus-visible {
+  background-color: #268a44;
+}
+
+.move-accept:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.move-accept-icon {
+  width: 30px;
+  height: 30px;
+}

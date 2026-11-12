@@ -56,22 +56,30 @@ describe('rowToRecord', () => {
     expect(rowToRecord(ROW_A, BASE_URL).uploaderName).toBe('');
   });
 
+  it('prefers eff_latitude/eff_longitude over latitude/longitude', () => {
+    const record = rowToRecord({ ...ROW_A, eff_latitude: 1.5, eff_longitude: 2.5 }, BASE_URL);
+    expect(record.latitude).toBe(1.5);
+    expect(record.longitude).toBe(2.5);
+  });
+
   it('coerces a null timestamp to an empty string', () => {
     const record = rowToRecord({ ...ROW_A, timestamp: null }, BASE_URL);
     expect(record.timestamp).toBe('');
   });
 });
 
+const V = { isAdmin: false };
+
 describe('queryAllImages', () => {
   it('returns a record per row', async () => {
     const { db } = fakeD1([ROW_A, ROW_NEAR]);
-    const records = await queryAllImages(db, BASE_URL);
+    const records = await queryAllImages(db, BASE_URL, V);
     expect(records.map((r) => r.id)).toEqual(['a', 'near']);
   });
 
   it('selects every image', async () => {
     const { db, calls } = fakeD1([]);
-    await queryAllImages(db, BASE_URL);
+    await queryAllImages(db, BASE_URL, V);
     expect(calls[0]!.sql).toContain('LEFT JOIN uploaders');
   });
 });
@@ -79,41 +87,41 @@ describe('queryAllImages', () => {
 describe('queryImageById', () => {
   it('binds the id as a parameter', async () => {
     const { db, calls } = fakeD1([ROW_A]);
-    await queryImageById(db, 'a', BASE_URL);
+    await queryImageById(db, 'a', BASE_URL, V);
     expect(calls[0]!.sql).toContain('LEFT JOIN uploaders');
-    expect(calls[0]!.sql).toMatch(/WHERE images\.id = \?$/);
+    expect(calls[0]!.sql).toMatch(/WHERE images\.id = \? AND COALESCE\(o\.hidden, 0\) = 0$/);
     expect(calls[0]!.params).toEqual(['a']);
   });
 
   it('returns the record when found', async () => {
     const { db } = fakeD1([ROW_A]);
-    expect((await queryImageById(db, 'a', BASE_URL))?.id).toBe('a');
+    expect((await queryImageById(db, 'a', BASE_URL, V))?.id).toBe('a');
   });
 
   it('returns null when not found', async () => {
     const { db } = fakeD1([]);
-    expect(await queryImageById(db, 'missing', BASE_URL)).toBeNull();
+    expect(await queryImageById(db, 'missing', BASE_URL, V)).toBeNull();
   });
 });
 
 describe('queryNearbyImages', () => {
   it('excludes the origin image from the query', async () => {
     const { db, calls } = fakeD1([]);
-    await queryNearbyImages(db, 'a', 51.5, -0.12, 1, BASE_URL);
+    await queryNearbyImages(db, 'a', 51.5, -0.12, 1, BASE_URL, V);
     expect(calls[0]!.sql).toContain('LEFT JOIN uploaders');
-    expect(calls[0]!.sql).toMatch(/WHERE images\.id != \?$/);
+    expect(calls[0]!.sql).toMatch(/WHERE images\.id != \? AND COALESCE\(o\.hidden, 0\) = 0$/);
     expect(calls[0]!.params).toEqual(['a']);
   });
 
   it('keeps only images inside the radius', async () => {
     const { db } = fakeD1([ROW_NEAR, ROW_FAR]);
-    const records = await queryNearbyImages(db, 'a', 51.5, -0.12, 5, BASE_URL);
+    const records = await queryNearbyImages(db, 'a', 51.5, -0.12, 5, BASE_URL, V);
     expect(records.map((r) => r.id)).toEqual(['near']);
   });
 
   it('sorts results nearest first', async () => {
     const { db } = fakeD1([ROW_FAR, ROW_NEAR]);
-    const records = await queryNearbyImages(db, 'a', 51.5, -0.12, 500, BASE_URL);
+    const records = await queryNearbyImages(db, 'a', 51.5, -0.12, 500, BASE_URL, V);
     expect(records.map((r) => r.id)).toEqual(['near', 'far']);
   });
 });

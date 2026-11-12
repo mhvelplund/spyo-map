@@ -1,0 +1,53 @@
+.header-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: #2e9e4f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.header-btn:hover,
+.header-btn:focus-visible {
+  background-color: #268a44;
+}
+
+.header-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.header-notice {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 12px;
+  background-color: #333;
+  color: #fff;
+  font-size: 13px;
+  border-radius: 6px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.header-notice button {
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}

@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import {
   createD1Client,
   fetchExistingIds,
+  fetchHiddenNames,
   upsertImages,
   type D1Client,
   type ImageInsert,
@@ -208,5 +209,32 @@ describe('upsertImages', () => {
     for (const call of calls) {
       expect(call.params.length).toBeLessThanOrEqual(100);
     }
+  });
+});
+
+describe('fetchHiddenNames', () => {
+  it('selects hidden overrides only', async () => {
+    const { client, calls } = fakeClient([]);
+    await fetchHiddenNames(client);
+    expect(calls[0]!.sql).toMatch(/FROM image_overrides/);
+    expect(calls[0]!.sql).toMatch(/hidden = 1/);
+  });
+
+  it('maps content hash to private name', async () => {
+    const { client } = fakeClient([
+      { content_hash: 'h1', private_name: 'n1' },
+      { content_hash: 'h2', private_name: 'n2' },
+    ]);
+    expect(await fetchHiddenNames(client)).toEqual(
+      new Map([
+        ['h1', 'n1'],
+        ['h2', 'n2'],
+      ]),
+    );
+  });
+
+  it('skips rows without a private name', async () => {
+    const { client } = fakeClient([{ content_hash: 'h1', private_name: null }]);
+    expect((await fetchHiddenNames(client)).size).toBe(0);
   });
 });

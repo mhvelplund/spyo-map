@@ -63,7 +63,7 @@ async function call(req: Request, info: Info = goodInfo(), status = 200) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockFindByEmail.mockResolvedValue({ id: 7, displayName: 'Ada' });
+  mockFindByEmail.mockResolvedValue({ id: 7, displayName: 'Ada', isAdmin: false });
 });
 
 describe('POST /auth/google/idtoken', () => {
@@ -71,7 +71,7 @@ describe('POST /auth/google/idtoken', () => {
     const { res } = await call(post({ idToken: 'tok' }));
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(await res.json()).toEqual({ displayName: 'Ada' });
+    expect(await res.json()).toEqual({ displayName: 'Ada', isAdmin: false });
     const cookie = res.headers.get('set-cookie') ?? '';
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('Max-Age=604800');

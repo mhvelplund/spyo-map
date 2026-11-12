@@ -1,5 +1,8 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { createHash } from 'node:crypto';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Config } from '../src/config.js';
 import type { D1Client, ImageInsert } from '../src/d1.js';
 
@@ -21,6 +24,8 @@ const mockProcessImage = jest.fn() as jest.Mock<any>;
 const mockFetchExistingIds = jest.fn() as jest.Mock<any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockUpsertImages = jest.fn() as jest.Mock<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockFetchHiddenNames = jest.fn() as jest.Mock<any>;
 
 jest.unstable_mockModule('../src/storage.js', () => ({
   listObjects: mockListObjects,
@@ -38,11 +43,12 @@ jest.unstable_mockModule('../src/processor.js', () => ({
 
 jest.unstable_mockModule('../src/d1.js', () => ({
   fetchExistingIds: mockFetchExistingIds,
+  fetchHiddenNames: mockFetchHiddenNames,
   upsertImages: mockUpsertImages,
   createD1Client: jest.fn(),
 }));
 
-const { runExtractor } = await import('../src/extractor.js');
+const { runExtractor, outputKeys } = await import('../src/extractor.js');
 
 const CONFIG: Config = {
   storageEndpoint: 'https://acct.r2.cloudflarestorage.com',
@@ -64,6 +70,7 @@ const d1 = {} as D1Client;
 beforeEach(() => {
   jest.clearAllMocks();
   mockFetchExistingIds.mockResolvedValue(new Set());
+  mockFetchHiddenNames.mockResolvedValue(new Map());
   mockUpsertImages.mockResolvedValue(undefined);
   mockGetObjectWithMetadata.mockResolvedValue({ body: Buffer.from('jpeg'), metadata: {} });
   mockMoveObject.mockResolvedValue(undefined);
@@ -362,5 +369,86 @@ describe('bucket split', () => {
     await runExtractor(CONFIG, s3, d1);
     expect(mockMoveObject).toHaveBeenCalledWith(s3, 'spyo-map-private', 'raw/a.jpg', 'failed/a.jpg');
     expect(mockPutObject).not.toHaveBeenCalled();
+  });
+});
+
+describe('outputKeys', () => {
+  it('uses images/ keys for a visible photo', () => {
+    expect(outputKeys('abc', undefined)).toEqual({
+      full: 'images/abc.jpg',
+      thumb: 'images/thumbnails/abc.jpg',
+    });
+  });
+
+  it('uses private/ keys for a hidden photo', () => {
+    expect(outputKeys('abc', 'secret')).toEqual({
+      full: 'private/secret.jpg',
+      thumb: 'private/thumbnails/secret.jpg',
+    });
+  });
+});
+
+describe('hidden photos', () => {
+  const HASH = createHash('sha256').update(Buffer.from('jpeg')).digest('hex');
+
+  it('fetches hidden names once per run', async () => {
+    mockListObjects.mockResolvedValue([]);
+    await runExtractor(CONFIG, s3, d1);
+    expect(mockFetchHiddenNames).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed: rejects and writes nothing when hidden names cannot be fetched', async () => {
+    mockFetchHiddenNames.mockRejectedValue(new Error('d1 down'));
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    await expect(runExtractor(CONFIG, s3, d1)).rejects.toThrow('d1 down');
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUpsertImages).not.toHaveBeenCalled();
+  });
+
+  it('writes a hidden photo (bucket source) to private keys, never images/', async () => {
+    mockFetchHiddenNames.mockResolvedValue(new Map([[HASH, 'privname']]));
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    await runExtractor(CONFIG, s3, d1);
+
+    const keys = mockPutObject.mock.calls.map((c) => c[2]);
+    expect(keys).toEqual(['private/privname.jpg', 'private/thumbnails/privname.jpg']);
+    expect(keys.some((k: string) => k.startsWith('images/'))).toBe(false);
+  });
+
+  it('leaves a non-hidden photo (bucket source) under images/', async () => {
+    mockFetchHiddenNames.mockResolvedValue(new Map([['other-hash', 'privname']]));
+    mockListObjects.mockResolvedValue([{ key: 'raw/a.jpg', etag: 'e1', size: 1 }]);
+    await runExtractor(CONFIG, s3, d1);
+
+    const keys = mockPutObject.mock.calls.map((c) => c[2]);
+    expect(keys[0]).toMatch(/^images\/[0-9a-f]{32}\.jpg$/);
+    expect(keys[1]).toMatch(/^images\/thumbnails\/[0-9a-f]{32}\.jpg$/);
+  });
+
+  describe('local source', () => {
+    let dir: string;
+    beforeEach(async () => {
+      dir = await mkdtemp(join(tmpdir(), 'spyo-local-'));
+      await writeFile(join(dir, 'a.jpg'), Buffer.from('jpeg'));
+    });
+    afterEach(async () => {
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    it('writes a hidden photo to private keys, never images/', async () => {
+      mockFetchHiddenNames.mockResolvedValue(new Map([[HASH, 'privname']]));
+      await runExtractor({ ...CONFIG, localSourcePath: dir }, s3, d1);
+
+      const keys = mockPutObject.mock.calls.map((c) => c[2]);
+      expect(keys).toEqual(['private/privname.jpg', 'private/thumbnails/privname.jpg']);
+    });
+
+    it('leaves a non-hidden photo under images/', async () => {
+      await runExtractor({ ...CONFIG, localSourcePath: dir }, s3, d1);
+
+      const keys = mockPutObject.mock.calls.map((c) => c[2]);
+      expect(keys[0]).toMatch(/^images\/[0-9a-f]{32}\.jpg$/);
+      expect(keys[1]).toMatch(/^images\/thumbnails\/[0-9a-f]{32}\.jpg$/);
+    });
   });
 });

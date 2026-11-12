@@ -117,3 +117,59 @@
     line-height: 44px;
   }
 }
+
+/* Hidden photos only reach admins; grey them so they stand out from public ones. */
+.marker-hidden {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* Admin mode: markers can be long-pressed and dragged. Stop the browser (notably Android WebView) from turning a
+   long-press into text selection, an image callout or a native image drag. */
+.map-admin .leaflet-marker-icon {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+
+/* Scale the inner circle: the icon element itself carries Leaflet's positioning transform. */
+.photo-marker {
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.marker-lifted .photo-marker {
+  transform: scale(1.15);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45) !important; /* overrides the inline marker shadow */
+  cursor: grabbing !important;
+}
+
+/* Admin drag: ring the marker the lifted one would be grouped with on release. */
+.marker-drop-target .photo-marker {
+  box-shadow: 0 0 0 4px #2e9e4f !important; /* overrides the inline marker shadow */
+}
+
+/* Member count of a grouped photo, top-right of its marker (the icon element is the positioning context). */
+.marker-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 2px solid #fff;
+  border-radius: 11px;
+  background: #2e9e4f;
+  color: #fff;
+  font: 600 12px/18px system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* The badge sits beside the inner circle, so grey it along with a hidden representative. */
+.marker-hidden + .marker-count {
+  filter: grayscale(1);
+  opacity: 0.6;
+}

@@ -15,9 +15,18 @@ const OAUTH_COOKIE = "spyo_oauth";
 const OAUTH_COOKIE_PATH = "/auth";
 const OAUTH_TTL_SECONDS = 600;
 
-const UPLOAD_PAGE = "/#/upload";
-const UPLOAD_ERROR = "/#/upload?error=1";
-const UPLOAD_DENIED = "/#/upload?denied=1";
+type ReturnTo = "upload" | "map";
+
+// Fixed strings only: the redirect location is never built from user input.
+const REDIRECTS: Record<ReturnTo, { ok: string; denied: string; error: string }> = {
+  upload: { ok: "/#/upload", denied: "/#/upload?denied=1", error: "/#/upload?error=1" },
+  map: { ok: "/#/map", denied: "/#/map?signin=denied", error: "/#/map?signin=error" },
+};
+
+/** Exactly "map" selects the map; anything else (including junk) is the upload page. */
+function parseReturnTo(v: string | null): ReturnTo {
+  return v === "map" ? "map" : "upload";
+}
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -61,8 +70,9 @@ async function login(request: Request, env: Env): Promise<Response> {
     state,
     codeChallenge: await codeChallengeS256(verifier),
   });
-  // HttpOnly and scoped to /auth; carries only state and verifier, never identity.
-  const cookie = serializeCookie(OAUTH_COOKIE, `${state}.${verifier}`, {
+  // HttpOnly and scoped to /auth; carries only state, verifier and return target, never identity.
+  const returnTo = parseReturnTo(new URL(request.url).searchParams.get("return"));
+  const cookie = serializeCookie(OAUTH_COOKIE, `${state}.${verifier}.${returnTo}`, {
     maxAge: OAUTH_TTL_SECONDS,
     path: OAUTH_COOKIE_PATH,
     httpOnly: true,
@@ -77,8 +87,13 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
   const code = url.searchParams.get("code") ?? "";
 
   const stored = parseCookies(request.headers.get("cookie"))[OAUTH_COOKIE] ?? "";
-  const [storedState = "", verifier = "", ...rest] = stored.split(".");
+  const [storedState = "", verifier = "", returnSeg, ...rest] = stored.split(".");
+  // A missing return segment is the legacy 2-segment cookie, which meant the upload page.
+  const returnValid = returnSeg === undefined || returnSeg === "upload" || returnSeg === "map";
+  // A malformed cookie (extra segments or unknown target) is unparseable, so errors use upload's URL.
+  const target = REDIRECTS[returnValid && rest.length === 0 ? parseReturnTo(returnSeg ?? null) : "upload"];
   if (
+    !returnValid ||
     !state ||
     !code ||
     !storedState ||
@@ -87,10 +102,10 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
     !constantTimeEqual(state, storedState) ||
     !isConfigured(env)
   ) {
-    return redirect(UPLOAD_ERROR, [clear]);
+    return redirect(target.error, [clear]);
   }
 
-  // Any throw from Google, D1 or signing lands on error=1 and still clears spyo_oauth.
+  // Any throw from Google, D1 or signing lands on the error redirect and still clears spyo_oauth.
   let token: string;
   try {
     const email = await google.exchangeForVerifiedEmail(
@@ -103,24 +118,24 @@ async function callback(request: Request, env: Env, fetchFn: typeof fetch): Prom
       },
       fetchFn,
     );
-    if (!email) return redirect(UPLOAD_DENIED, [clear]);
+    if (!email) return redirect(target.denied, [clear]);
 
     const uploader = await findActiveUploaderByEmail(env.DB, email);
-    if (!uploader) return redirect(UPLOAD_DENIED, [clear]);
+    if (!uploader) return redirect(target.denied, [clear]);
 
     token = await signSession(
       { uploaderId: uploader.id, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS },
       env.SESSION_SECRET,
     );
   } catch {
-    return redirect(UPLOAD_ERROR, [clear]);
+    return redirect(target.error, [clear]);
   }
   const session = serializeCookie(SESSION_COOKIE, token, {
     maxAge: SESSION_TTL_SECONDS,
     path: "/",
     httpOnly: true,
   });
-  return redirect(UPLOAD_PAGE, [clear, session]);
+  return redirect(target.ok, [clear, session]);
 }
 
 /** The mobile app's native Google sign-in: trades a Google ID token for the same session cookie as callback(). */
@@ -147,16 +162,16 @@ async function idTokenSignIn(request: Request, env: Env, fetchFn: typeof fetch):
   if (!email) return json({ error: "Invalid token" }, 401);
 
   let token: string;
-  let displayName: string;
+  let me: MeResponse;
   try {
     const uploader = await findActiveUploaderByEmail(env.DB, email);
     if (!uploader) return json({ error: "Not allowed" }, 403);
-    displayName = uploader.displayName;
+    me = { displayName: uploader.displayName, isAdmin: uploader.isAdmin };
     token = await signSession({ uploaderId: uploader.id, exp: nowSec + SESSION_TTL_SECONDS }, env.SESSION_SECRET);
   } catch {
     return json({ error: "Sign-in failed" }, 500);
   }
-  const res = json({ displayName } satisfies MeResponse, 200);
+  const res = json(me, 200);
   res.headers.append(
     "set-cookie",
     serializeCookie(SESSION_COOKIE, token, { maxAge: SESSION_TTL_SECONDS, path: "/", httpOnly: true }),

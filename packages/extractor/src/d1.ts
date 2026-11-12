@@ -84,6 +84,22 @@ export async function fetchExistingIds(client: D1Client): Promise<Set<string>> {
   return new Set(rows.map((row) => row['id'] as string));
 }
 
+/** Content hash -> private name for every hidden photo, so processed files stay out of images/. */
+export async function fetchHiddenNames(client: D1Client): Promise<Map<string, string>> {
+  const rows = await client.query(
+    'SELECT content_hash, private_name FROM image_overrides WHERE hidden = 1',
+  );
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    const hash = row['content_hash'];
+    const name = row['private_name'];
+    if (typeof hash === 'string' && typeof name === 'string' && name !== '') {
+      names.set(hash, name);
+    }
+  }
+  return names;
+}
+
 function toParams(row: ImageInsert): unknown[] {
   const { exif } = row;
   return [

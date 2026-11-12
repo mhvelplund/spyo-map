@@ -44,14 +44,14 @@ function stubFetch(userinfo: Userinfo) {
   });
 }
 
-async function login(): Promise<{ res: Response; state: string; verifier: string }> {
+async function login(query = ''): Promise<{ res: Response; state: string; verifier: string }> {
   const res = await handleAuthRequest(
-    new Request('https://app.test/auth/login/google'),
+    new Request(`https://app.test/auth/login/google${query}`),
     env,
     stubFetch({}) as unknown as typeof fetch,
   );
   const setCookie = res.headers.get('set-cookie') ?? '';
-  const m = /spyo_oauth=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+);/.exec(setCookie);
+  const m = /spyo_oauth=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)(?:\.[A-Za-z]+)?;/.exec(setCookie);
   if (!m) throw new Error(`no spyo_oauth cookie in ${setCookie}`);
   return { res, state: m[1], verifier: m[2] };
 }
@@ -307,6 +307,84 @@ describe('GET /auth/callback/google', () => {
     );
     expect(res.headers.get('location')).toBe('/#/upload?error=1');
     expect(res.headers.getSetCookie().some((c) => c.startsWith('spyo_session='))).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('OAuth return target', () => {
+  const oauthValue = (res: Response): string =>
+    /spyo_oauth=([^;]*);/.exec(res.headers.get('set-cookie') ?? '')?.[1] ?? '';
+
+  it('login with return=map stores a 3-segment cookie ending in map', async () => {
+    const { res } = await login('?return=map');
+    const parts = oauthValue(res).split('.');
+    expect(parts).toHaveLength(3);
+    expect(parts[2]).toBe('map');
+  });
+
+  it('login defaults to upload and treats junk return values as upload', async () => {
+    for (const q of ['', '?return=upload', '?return=//evil.com', '?return=MAP', '?return=']) {
+      const { res } = await login(q);
+      expect(oauthValue(res).split('.')[2]).toBe('upload');
+    }
+  });
+
+  async function run(cookieSuffix: string, fetchFn: unknown, stateSuffix = '') {
+    const { state, verifier } = await login();
+    return handleAuthRequest(
+      callback(`${state}${stateSuffix}`, `spyo_oauth=${state}.${verifier}${cookieSuffix}`),
+      env,
+      fetchFn as typeof fetch,
+    );
+  }
+
+  it('success with a map cookie goes to /#/map with a session', async () => {
+    const res = await run('.map', stubFetch({ email: EMAIL, email_verified: true }));
+    expect(res.headers.get('location')).toBe('/#/map');
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.some((c) => c.startsWith('spyo_session='))).toBe(true);
+    expect(cookies.some((c) => c.startsWith('spyo_oauth=;') && c.includes('Max-Age=0'))).toBe(true);
+  });
+
+  it('a non-allow-listed email with a map cookie goes to signin=denied', async () => {
+    mockFindByEmail.mockResolvedValue(null);
+    const res = await run('.map', stubFetch({ email: EMAIL, email_verified: true }));
+    expect(res.headers.get('location')).toBe('/#/map?signin=denied');
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('spyo_session='))).toBe(false);
+  });
+
+  it('a Google failure with a map cookie goes to signin=error', async () => {
+    const fetchFn = jest.fn(async () => {
+      throw new Error('network down');
+    });
+    const res = await run('.map', fetchFn);
+    expect(res.headers.get('location')).toBe('/#/map?signin=error');
+  });
+
+  it('a state mismatch with a map cookie goes to signin=error', async () => {
+    const fetchFn = stubFetch({ email: EMAIL, email_verified: true });
+    const res = await run('.map', fetchFn, 'x');
+    expect(res.headers.get('location')).toBe('/#/map?signin=error');
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('spyo_oauth=;'))).toBe(true);
+  });
+
+  it('a legacy 2-segment cookie returns to /#/upload', async () => {
+    const res = await run('', stubFetch({ email: EMAIL, email_verified: true }));
+    expect(res.headers.get('location')).toBe('/#/upload');
+  });
+
+  it('a cookie with 4+ segments is rejected to the upload error url', async () => {
+    const fetchFn = stubFetch({ email: EMAIL, email_verified: true });
+    const res = await run('.map.extra', fetchFn);
+    expect(res.headers.get('location')).toBe('/#/upload?error=1');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('an unknown return segment is rejected to the upload error url', async () => {
+    const fetchFn = stubFetch({ email: EMAIL, email_verified: true });
+    const res = await run('.//evil.com', fetchFn);
+    expect(res.headers.get('location')).toBe('/#/upload?error=1');
     expect(fetchFn).not.toHaveBeenCalled();
   });
 });

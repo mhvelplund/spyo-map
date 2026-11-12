@@ -30,6 +30,17 @@ describe('ImageModal', () => {
     expect(modal).toBeInTheDocument();
   });
 
+  it('shows share buttons for a visible photo but not for a hidden one', () => {
+    const { rerender } = render(
+      <ImageModal image={mockImage} nearbyImages={[mockImage]} isOpen onClose={jest.fn()} onNavigate={jest.fn()} />
+    );
+    expect(screen.getByRole('button', { name: 'Share on Facebook' })).toBeInTheDocument();
+    const hidden = { ...mockImage, hidden: true };
+    rerender(<ImageModal image={hidden} nearbyImages={[hidden]} isOpen onClose={jest.fn()} onNavigate={jest.fn()} />);
+    expect(screen.getByText('Hidden')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Share on/ })).not.toBeInTheDocument();
+  });
+
   it('should not render when closed', () => {
     const { container } = render(
       <ImageModal

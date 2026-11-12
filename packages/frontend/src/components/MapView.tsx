@@ -8,43 +8,245 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { GeoLocation, ImageRecord, MapViewProps } from '../types';
 import dotIcon from '../assets/dot.png';
+import { LONG_PRESS_MS, MOVE_TOLERANCE_PX, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
+import { collapseGroups, findDropTarget, type ScreenPoint } from '../utils/groups';
 import './MapContainer.css';
 
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.006];
 const DEFAULT_ZOOM = 2;
 
-interface MarkerLayerProps {
+interface PendingMove {
+  imageId: string;
+  to: LatLng;
+}
+
+interface AdminMoveProps {
+  /** Admin mode: long-press a marker (whose image is not `editable: false`) to pick it up and drag it. */
+  editable?: boolean;
+  /** A lifted marker was released at `to`; `targetId` is the marker it was dropped onto, if any (a group request). */
+  onMarkerDrop?: (imageId: string, to: LatLng, targetId?: string) => void;
+  /** That marker renders at `to`; when this goes back to null, markers return to their `images` positions. */
+  pendingMove?: PendingMove | null;
+  /** Click on the bare map while `pendingMove` is set. */
+  onMapClick?: () => void;
+}
+
+interface MarkerLayerProps extends AdminMoveProps {
   images: ImageRecord[];
   selectedImageId?: string;
   onImageSelect: (imageId: string) => void;
 }
 
-interface MapViewPropsExtended extends MapViewProps {
+interface MapViewPropsExtended extends MapViewProps, AdminMoveProps {
   onMapReady?: (map: L.Map) => void;
   userPosition?: GeoLocation | null;
 }
 
-const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageId, onImageSelect }) => {
+interface MarkerEntry {
+  marker: L.Marker;
+  image: ImageRecord;
+}
+
+/**
+ * Swallow the click the browser sends after a lifted marker is released, so it neither opens the photo nor discards.
+ * Only a click on that marker's element counts; anything else passes through.
+ */
+function suppressNextClick(el: HTMLElement): void {
+  const stop = (e: MouseEvent) => {
+    if (!(e.target instanceof Node) || !el.contains(e.target)) return;
+    e.stopPropagation();
+    e.preventDefault();
+    window.removeEventListener('click', stop, true);
+  };
+  window.addEventListener('click', stop, true);
+  setTimeout(() => window.removeEventListener('click', stop, true), 400);
+}
+
+const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
+  images,
+  selectedImageId,
+  onImageSelect,
+  editable,
+  onMarkerDrop,
+  pendingMove,
+  onMapClick,
+}) => {
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const markersRef = useRef(new Map<string, MarkerEntry>());
+  // Ends an in-flight lift (lifted marker, disabled map dragging) when the markers are torn down.
+  const abortLiftRef = useRef<(() => void) | null>(null);
+  // Callbacks and move state are read at event time, so changing them never rebuilds the cluster group.
+  const latest = useRef({ onImageSelect, editable, onMarkerDrop, pendingMove, onMapClick });
+  useLayoutEffect(() => {
+    latest.current = { onImageSelect, editable, onMarkerDrop, pendingMove, onMapClick };
+  });
 
   useEffect(() => {
+    const restingLatLng = (image: ImageRecord): L.LatLngExpression => {
+      const move = latest.current.pendingMove;
+      return move?.imageId === image.id ? [move.to.lat, move.to.lng] : [image.latitude, image.longitude];
+    };
+
     if (clusterGroupRef.current) {
       map.removeLayer(clusterGroupRef.current);
       clusterGroupRef.current = null;
     }
+    markersRef.current.clear();
 
     const clusterGroup = L.markerClusterGroup();
     clusterGroupRef.current = clusterGroup;
 
-    images.forEach(image => {
-      const isSelected = image.id === selectedImageId;
+    // Drop targets: other markers shown on their own (not inside a cluster bubble), in container pixels. Collected when
+    // a marker lifts and again only if the view changes mid-drag, so pointermove stays cheap.
+    let dropCandidates: ScreenPoint[] | null = null;
+    const invalidateCandidates = () => {
+      dropCandidates = null;
+    };
+    const candidates = (): ScreenPoint[] => {
+      if (dropCandidates) return dropCandidates;
+      const size = map.getSize();
+      dropCandidates = [];
+      for (const [id, { marker: m }] of markersRef.current) {
+        if (!m.getElement() || clusterGroup.getVisibleParent(m) !== m) continue;
+        const p = map.latLngToContainerPoint(m.getLatLng());
+        if (p.x < 0 || p.y < 0 || p.x > size.x || p.y > size.y) continue;
+        dropCandidates.push({ id, x: p.x, y: p.y });
+      }
+      return dropCandidates;
+    };
+    map.on('zoomend moveend', invalidateCandidates);
+
+    // Long-press to lift, drag, release to drop. `el` is one rendering of the marker; it is discarded on 'remove'.
+    const attachPress = (el: HTMLElement, marker: L.Marker, image: ImageRecord) => {
+      let press: PressState = { kind: 'idle' };
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let pointerId = -1;
+      let restoreDragging = false;
+      // Last pointer position seen, and where it was when the marker lifted (for the "didn't really move" check).
+      let lastX = 0;
+      let lastY = 0;
+      let liftX = 0;
+      let liftY = 0;
+      // Marker element currently ringed as the drop target.
+      let targetEl: HTMLElement | null = null;
+
+      const send = (event: PressEvent) => {
+        press = pressReducer(press, event);
+        if (press.kind !== 'pending') clearTimeout(timer);
+      };
+      const stop = (e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+      const targetAt = (e: PointerEvent): string | undefined =>
+        findDropTarget(map.mouseEventToContainerPoint(e), candidates(), image.id);
+      const showTarget = (targetId: string | undefined) => {
+        const next = (targetId && markersRef.current.get(targetId)?.marker.getElement()) || null;
+        if (next === targetEl) return;
+        targetEl?.classList.remove('marker-drop-target');
+        next?.classList.add('marker-drop-target');
+        targetEl = next;
+      };
+      const lift = () => {
+        invalidateCandidates();
+        restoreDragging = map.dragging.enabled();
+        map.dragging.disable(); // also ends the map pan Leaflet started on pointerdown
+        marker.fire('dragstart'); // markercluster: don't re-cluster on every move until 'dragend'
+        liftX = lastX;
+        liftY = lastY;
+        el.classList.add('marker-lifted');
+        try { el.setPointerCapture(pointerId); } catch { /* pointer already gone */ }
+        abortLiftRef.current = () => land(false);
+      };
+      const land = (dropped: boolean) => {
+        send({ type: dropped ? 'up' : 'cancel' });
+        el.classList.remove('marker-lifted');
+        showTarget(undefined);
+        if (restoreDragging) map.dragging.enable();
+        restoreDragging = false;
+        abortLiftRef.current = null;
+        if (!dropped) marker.setLatLng(restingLatLng(image));
+        // Deferred so the element isn't replaced (re-clustered) before the browser dispatches the click.
+        setTimeout(() => marker.fire('dragend'), 0);
+      };
+
+      el.addEventListener('contextmenu', (e) => {
+        if (latest.current.editable) e.preventDefault();
+      });
+      el.addEventListener('pointerdown', (e) => {
+        if (!latest.current.editable || image.editable === false) return;
+        if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        pointerId = e.pointerId;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        clearTimeout(timer);
+        send({ type: 'down', x: e.clientX, y: e.clientY });
+        timer = setTimeout(() => {
+          send({ type: 'timeout' });
+          if (press.kind === 'armed') lift();
+        }, LONG_PRESS_MS);
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointerId) return;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        if (press.kind === 'armed') {
+          stop(e);
+          marker.setLatLng(map.mouseEventToLatLng(e).wrap());
+          showTarget(targetAt(e));
+        } else {
+          send({ type: 'move', x: e.clientX, y: e.clientY });
+        }
+      });
+      el.addEventListener('pointerup', (e) => {
+        if (e.pointerId !== pointerId) return;
+        if (press.kind !== 'armed') {
+          send({ type: 'up' });
+          return;
+        }
+        stop(e);
+        suppressNextClick(el);
+        // Lifted but released (almost) where it was picked up: not a move, so put it back and record nothing.
+        if (Math.hypot(e.clientX - liftX, e.clientY - liftY) < MOVE_TOLERANCE_PX) {
+          land(false);
+          return;
+        }
+        const { lat, lng } = map.mouseEventToLatLng(e).wrap();
+        const targetId = targetAt(e);
+        marker.setLatLng([lat, lng]);
+        land(true);
+        latest.current.onMarkerDrop?.(image.id, { lat, lng }, targetId);
+      });
+      const cancel = (e: PointerEvent) => {
+        if (e.pointerId !== pointerId) return;
+        if (press.kind === 'armed') land(false);
+        else send({ type: 'cancel' });
+      };
+      el.addEventListener('pointercancel', cancel);
+      el.addEventListener('lostpointercapture', cancel); // after a normal drop the press is already idle
+      // Mouse leaving the marker before it lifts is a map pan, not a press (touch keeps its target implicitly).
+      el.addEventListener('pointerleave', (e) => {
+        if (press.kind === 'pending' && e.pointerId === pointerId) send({ type: 'cancel' });
+      });
+      marker.once('remove', () => {
+        if (press.kind === 'armed') land(false);
+        else send({ type: 'cancel' });
+      });
+    };
+
+    // One marker per group (its representative), badged with the member count.
+    const { markers, counts } = collapseGroups(images);
+    const selectedGroupId = images.find(img => img.id === selectedImageId)?.groupId;
+    markers.forEach(image => {
+      const isSelected = image.id === selectedImageId || (!!selectedGroupId && image.groupId === selectedGroupId);
+      const count = counts.get(image.id);
       const borderColor = isSelected ? '#4285f4' : 'white';
       const extraShadow = isSelected ? ', 0 0 0 3px rgba(66,133,244,0.4)' : '';
 
       const icon = L.divIcon({
         className: '',
-        html: `<div style="
+        html: `<div class="photo-marker${image.hidden ? ' marker-hidden' : ''}" style="
             width: 60px;
             height: 60px;
             border-radius: 50%;
@@ -59,26 +261,58 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({ images, selectedImageI
           "><img
             src="${image.thumbnailUrl}"
             alt=""
+            draggable="false"
             style="width: 54px; height: 54px; border-radius: 50%; object-fit: cover;"
-          /></div>`,
+          /></div>${count ? `<span class="marker-count">${count}</span>` : ''}`,
         iconSize: [60, 60],
         iconAnchor: [30, 30],
       });
 
-      const marker = L.marker([image.latitude, image.longitude], { icon });
-      marker.on('click', () => onImageSelect(image.id));
+      const marker = L.marker(restingLatLng(image), { icon });
+      marker.on('click', () => latest.current.onImageSelect(image.id));
+      // markercluster creates a fresh element each time the marker is shown (e.g. after un-clustering).
+      marker.on('add', () => {
+        const el = marker.getElement();
+        if (el) attachPress(el, marker, image);
+      });
+      markersRef.current.set(image.id, { marker, image });
       clusterGroup.addLayer(marker);
     });
 
     map.addLayer(clusterGroup);
 
     return () => {
+      map.off('zoomend moveend', invalidateCandidates);
+      abortLiftRef.current?.();
       if (clusterGroupRef.current) {
         map.removeLayer(clusterGroupRef.current);
         clusterGroupRef.current = null;
       }
     };
-  }, [map, images, selectedImageId, onImageSelect]);
+  }, [map, images, selectedImageId]);
+
+  // Keep the pending marker at its new spot; put a previously moved marker back where its image says (snap-back).
+  const shownMoveIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const markers = markersRef.current;
+    const prevId = shownMoveIdRef.current;
+    if (prevId && prevId !== pendingMove?.imageId) {
+      const entry = markers.get(prevId);
+      entry?.marker.setLatLng([entry.image.latitude, entry.image.longitude]);
+    }
+    if (pendingMove) markers.get(pendingMove.imageId)?.marker.setLatLng([pendingMove.to.lat, pendingMove.to.lng]);
+    shownMoveIdRef.current = pendingMove?.imageId ?? null;
+  }, [pendingMove, images]);
+
+  useEffect(() => {
+    const onClick = () => {
+      if (latest.current.pendingMove) latest.current.onMapClick?.();
+    };
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+    };
+  }, [map]);
 
   return null;
 };
@@ -136,6 +370,10 @@ const MapView: React.FC<MapViewPropsExtended> = ({
   onImageSelect,
   onMapReady,
   userPosition,
+  editable,
+  onMarkerDrop,
+  pendingMove,
+  onMapClick,
 }) => {
   const initialCenter: [number, number] = images.length > 0
     ? [
@@ -147,7 +385,7 @@ const MapView: React.FC<MapViewPropsExtended> = ({
   const initialZoom = images.length > 0 ? 10 : DEFAULT_ZOOM;
 
   return (
-    <div className="map-container">
+    <div className={editable ? 'map-container map-admin' : 'map-container'}>
       <MapContainer
         center={initialCenter}
         zoom={initialZoom}
@@ -161,6 +399,10 @@ const MapView: React.FC<MapViewPropsExtended> = ({
           images={images}
           selectedImageId={selectedImageId}
           onImageSelect={onImageSelect}
+          editable={editable}
+          onMarkerDrop={onMarkerDrop}
+          pendingMove={pendingMove}
+          onMapClick={onMapClick}
         />
         {userPosition && <UserLocationLayer position={userPosition} />}
         <MapReadyCapture onReady={onMapReady} />
