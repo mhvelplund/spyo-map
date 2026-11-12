@@ -136,7 +136,8 @@ describe('MapPage admin hide', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(api.getAllImages).toHaveBeenCalledTimes(2);
     expect(props().images).toEqual([imageB]);
-    expect(screen.getByTestId('path')).toHaveTextContent(/^\/map$/);
+    // The router may commit the redirect in a later render than the dialog closing.
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/map$/));
   });
 
   it('reloads the admin list when the session turns admin after a visitor start', async () => {
