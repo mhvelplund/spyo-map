@@ -43,8 +43,8 @@ interface Dup {
 }
 
 const MapButton = () => (
-  <Link to="/map" className="fab" aria-label="Show map">
-    <img src={mapIcon} alt="" className="fab-icon" />
+  <Link to="/map" className="app-fab" aria-label="Show map">
+    <img src={mapIcon} alt="" className="app-fab-icon" />
   </Link>
 );
 
