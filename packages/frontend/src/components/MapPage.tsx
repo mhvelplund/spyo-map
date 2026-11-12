@@ -1,11 +1,11 @@
 import L from 'leaflet';
 import type React from 'react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { apiClient } from '../services';
 import type { GeoLocation, ImageRecord } from '../types';
 import { extractImageId } from '../utils/urlUtils';
-import { lightboxOrder } from '../utils/groups';
+import { collapseGroups, lightboxOrder } from '../utils/groups';
 import { getPosition, hasGps, watchPosition } from '../utils/geolocation';
 import { canOpenGallery, nativeOpenGallery } from '../utils/native';
 import { initialViewBounds } from '../utils/initialView';
@@ -366,6 +366,9 @@ const MapPage: React.FC = () => {
     [moveId, moveLat, moveLng],
   );
 
+  // Grouped photos show the same bird, so each group counts once.
+  const birdCount = useMemo(() => collapseGroups(images).markers.length, [images]);
+
   const handleCloseModal = useCallback(() => {
     setSelectedImage(null);
     setNearbyGroup([]);
@@ -400,9 +403,13 @@ const MapPage: React.FC = () => {
   return (
     <div className="main-map-view">
       <header className="map-header">
-        <h1>Spyo Map</h1>
+        <h1 className="map-header-title">
+          <Link to="/" state={{ fromMap: true }} className="map-header-home">
+            <img src="/icons/icon-192.png" alt="Spyo Map" className="map-header-logo" />
+          </Link>
+        </h1>
         <div className="map-header-right">
-          <div className="image-count">{images.length} geo-tagged images</div>
+          <div className="image-count">{birdCount} birds</div>
           <HeaderAccount me={me} onSignOut={signOut} />
         </div>
       </header>
