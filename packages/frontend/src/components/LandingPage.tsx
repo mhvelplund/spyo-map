@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router";
+import { Link, Navigate, useLocation } from "react-router";
 import { isNativeApp } from "../utils/native.js";
 import "./LandingPage.css";
 
@@ -7,7 +7,7 @@ export const LANDING_SEEN_KEY = "spyo.landingSeen";
 
 /**
  * In the app the landing page is shown only once after install; later launches go straight to the map. App data
- * (and this flag) is wiped on uninstall.
+ * (and this flag) is wiped on uninstall. Following the map header's logo always shows it.
  */
 function seenBefore(): boolean {
   try {
@@ -18,7 +18,8 @@ function seenBefore(): boolean {
 }
 
 const LandingPage: React.FC = () => {
-  const [skip] = useState(seenBefore);
+  const fromMap = (useLocation().state as { fromMap?: boolean } | null)?.fromMap === true;
+  const [skip] = useState(() => !fromMap && seenBefore());
   useEffect(() => {
     if (skip || !isNativeApp()) return;
     try {

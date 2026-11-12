@@ -4,9 +4,9 @@ import LandingPage, { LANDING_SEEN_KEY } from '../src/components/LandingPage';
 
 const g = globalThis as unknown as { Capacitor?: unknown };
 
-function renderAtRoot() {
+function renderAtRoot(state?: unknown) {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[{ pathname: '/', state }]}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/map" element={<p>map page</p>} />
@@ -35,6 +35,13 @@ describe('LandingPage first-launch behaviour', () => {
 
     renderAtRoot();
     expect(screen.getByText('map page')).toBeInTheDocument();
+  });
+
+  it('shows the landing page again in the app when opened from the map logo', () => {
+    g.Capacitor = { isNativePlatform: () => true, Plugins: { SpyoNative: {} } };
+    localStorage.setItem(LANDING_SEEN_KEY, '1');
+    renderAtRoot({ fromMap: true });
+    expect(screen.getByRole('link', { name: /view map/i })).toBeInTheDocument();
   });
 });
 

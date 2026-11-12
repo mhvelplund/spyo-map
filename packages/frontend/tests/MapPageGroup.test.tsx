@@ -124,6 +124,7 @@ describe('MapPage admin group', () => {
     api.getAllImages.mockResolvedValue([nearA, nearB, nearC]);
     await renderAt('/map');
     expect(screen.getByRole('img', { name: 'Spyo Map' })).toHaveAttribute('src', '/icons/icon-192.png');
+    expect(screen.getByRole('link', { name: 'Spyo Map' })).toHaveAttribute('href', '/');
     expect(screen.getByText('2 birds')).toBeInTheDocument();
   });
 

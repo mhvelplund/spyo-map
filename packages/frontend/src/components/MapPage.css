@@ -25,6 +25,10 @@
   line-height: 0;
 }
 
+.map-header-home {
+  display: block;
+}
+
 .map-header-logo {
   display: block;
   height: 40px;
