@@ -82,7 +82,7 @@ button:focus-visible {
 }
 
 /* Round floating action button, bottom center (map page album button, upload page map button). */
-.fab {
+.app-fab {
   position: fixed;
   left: 50%;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -104,13 +104,13 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.fab-icon {
+.app-fab-icon {
   width: 36px;
   height: 36px;
 }
 
-.fab:hover,
-.fab:focus-visible {
+.app-fab:hover,
+.app-fab:focus-visible {
   background-color: #268a44;
   color: #fff;
 }

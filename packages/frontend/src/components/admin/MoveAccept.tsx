@@ -12,7 +12,7 @@ interface MoveAcceptProps {
 const MoveAccept: React.FC<MoveAcceptProps> = ({ variant = 'move', saving, onAccept }) => (
   <button
     type="button"
-    className="fab move-accept"
+    className="app-fab move-accept"
     aria-label={variant === 'group' ? 'Group photos' : 'Save new position'}
     disabled={saving}
     onClick={onAccept}

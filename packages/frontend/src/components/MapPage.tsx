@@ -431,11 +431,11 @@ const MapPage: React.FC = () => {
       {showAlbum && !selectedImage && !move && (
         <button
           type="button"
-          className="fab"
+          className="app-fab"
           aria-label="Open photo album"
           onClick={() => void nativeOpenGallery()}
         >
-          <img src={albumIcon} alt="" className="fab-icon" />
+          <img src={albumIcon} alt="" className="app-fab-icon" />
         </button>
       )}
 

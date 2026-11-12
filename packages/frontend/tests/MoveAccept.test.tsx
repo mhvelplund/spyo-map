@@ -7,7 +7,7 @@ describe('MoveAccept', () => {
     const onAccept = jest.fn();
     render(<MoveAccept saving={false} onAccept={onAccept} />);
     const button = screen.getByRole('button', { name: 'Save new position' });
-    expect(button).toHaveClass('fab');
+    expect(button).toHaveClass('app-fab');
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(onAccept).toHaveBeenCalledTimes(1);
@@ -28,7 +28,7 @@ describe('MoveAccept group variant', () => {
     const onAccept = jest.fn();
     render(<MoveAccept variant="group" saving={false} onAccept={onAccept} />);
     const button = screen.getByRole('button', { name: 'Group photos' });
-    expect(button).toHaveClass('fab', 'move-accept');
+    expect(button).toHaveClass('app-fab', 'move-accept');
     expect(screen.queryByRole('button', { name: 'Save new position' })).not.toBeInTheDocument();
     fireEvent.click(button);
     expect(onAccept).toHaveBeenCalledTimes(1);

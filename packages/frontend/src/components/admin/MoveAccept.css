@@ -1,4 +1,4 @@
-/* Geometry comes from .fab (index.css); pin the colours so the accept button stays green regardless of .fab. */
+/* Geometry comes from .app-fab (index.css); pin the colours so the accept button stays green regardless of .app-fab. */
 .move-accept {
   background-color: #2e9e4f;
   color: #fff;
