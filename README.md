@@ -1,3 +1,5 @@
+<p align="center"><img src="packages/frontend/public/icons/icon-512.png" alt="Spyo Map logo" width="128" /></p>
+
 # Spyo Map
 
 <img src="docs/img/slop-small.jpg" alt="For robots, by robots. Vibed without love or skill." height="24" />

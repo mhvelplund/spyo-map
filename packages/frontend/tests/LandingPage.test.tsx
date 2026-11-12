@@ -51,6 +51,20 @@ describe('LandingPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('should render the app logo above the title', () => {
+    render(
+      <BrowserRouter>
+        <LandingPage />
+      </BrowserRouter>
+    );
+    const logo = screen.getByRole('img', { name: /spyo map logo/i });
+    expect(logo).toHaveAttribute('src', '/icons/icon-512.png');
+    expect(
+      logo.compareDocumentPosition(screen.getByRole('heading', { level: 1 })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it('should render a View Map button', () => {
     render(
       <BrowserRouter>
