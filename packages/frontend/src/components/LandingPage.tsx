@@ -31,6 +31,13 @@ const LandingPage: React.FC = () => {
   return (
     <div className="landing-page">
       <div className="landing-hero">
+        <img
+          src="/icons/icon-512.png"
+          alt="Spyo Map logo"
+          className="landing-logo"
+          width={128}
+          height={128}
+        />
         <h1 className="landing-title">Spyo Map</h1>
         <p className="landing-description">
           This is an interactive map documenting my walks around Copenhagen
