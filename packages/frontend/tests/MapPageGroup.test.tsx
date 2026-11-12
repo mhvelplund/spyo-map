@@ -119,6 +119,14 @@ describe('MapPage admin group', () => {
     expect(props().images).toEqual([nearA, nearB, nearC]);
   });
 
+  it('header shows the app logo and counts each group as one bird', async () => {
+    asVisitor();
+    api.getAllImages.mockResolvedValue([nearA, nearB, nearC]);
+    await renderAt('/map');
+    expect(screen.getByRole('img', { name: 'Spyo Map' })).toHaveAttribute('src', '/icons/icon-192.png');
+    expect(screen.getByText('2 birds')).toBeInTheDocument();
+  });
+
   it('a drop onto another marker offers "Group photos"; accept groups, then merges', async () => {
     asAdmin();
     api.groupImages.mockResolvedValue([groupedB, groupedA]);
