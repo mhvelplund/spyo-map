@@ -1,0 +1,42 @@
+name: Notify failure
+description: >-
+  Send a short, phone-readable ntfy.sh push about a failed workflow run: the failed step, the first
+  useful error annotation, and a tap-to-open link to the run. The caller decides when to run it
+  (typically a job with `needs: <job>` and `if: failure()`).
+
+inputs:
+  ntfy-topic:
+    description: >-
+      ntfy.sh topic to publish to. Pass it from a repository *secret* (not a `vars.*` Variable) so
+      GitHub masks it in every log line. If empty, the action logs a warning and exits successfully.
+    required: true
+  title-prefix:
+    description: Notification title prefix; the failed step name is appended after a colon.
+    required: false
+    default: Workflow failed
+  github-token:
+    description: >-
+      Token used to look up the run's failed job, step and annotations. Needs `actions: read` and
+      `checks: read`.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Send ntfy.sh alert
+      shell: bash
+      # Every value reaches the script through env, never through ${{ }} interpolation in `run:`,
+      # so the topic is never part of the rendered script text.
+      env:
+        NTFY_TOPIC: ${{ inputs.ntfy-topic }}
+        TITLE_PREFIX: ${{ inputs.title-prefix }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        RUN_ID: ${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        RUN_NUMBER: ${{ github.run_number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        EVENT: ${{ github.event_name }}
+        SHA: ${{ github.sha }}
+      run: '"$GITHUB_ACTION_PATH/notify.sh"'

@@ -122,6 +122,7 @@ Record the token. It is shown once.
 | `R2_ACCESS_KEY_ID`      | Access Key ID from step 5                       |
 | `R2_SECRET_ACCESS_KEY`  | Secret Access Key from step 5                   |
 | `R2_ENDPOINT`           | `https://<account-id>.r2.cloudflarestorage.com` |
+| `NTFY_TOPIC`            | ntfy.sh topic for ingest failure alerts (optional) |
 
 ## 8. First deploy
 
