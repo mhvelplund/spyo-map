@@ -53,3 +53,23 @@ jobs:
           # Scheduled runs have no inputs and fall back to raw/.
           SOURCE_PREFIX: ${{ inputs.source || 'raw' }}
         run: npm start --workspace=packages/extractor
+
+  # Trigger logic only; the alert itself lives in .github/actions/notify-failure. Runs when `ingest`
+  # fails or times out (not on a manual cancel). The topic is a secret so it is masked in every log.
+  notify-failure:
+    needs: ingest
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # checkout, to load the local action
+      actions: read # list this run's jobs and steps
+      checks: read # read the failed job's error annotations
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/notify-failure
+        with:
+          ntfy-topic: ${{ secrets.NTFY_TOPIC }}
+          title-prefix: Ingest failed
