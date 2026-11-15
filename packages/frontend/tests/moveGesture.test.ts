@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import {
+  isOwnCaptureLoss,
   pressReducer,
   moveReducer,
   type PressState,
@@ -114,5 +115,18 @@ describe('moveReducer', () => {
   it('accept keeps targetId', () => {
     const withTarget: MoveState = { imageId: 'a', from, to, status: 'pending', targetId: 't' };
     expect(moveReducer(withTarget, { type: 'accept' })).toEqual({ ...withTarget, status: 'saving' });
+  });
+});
+
+describe('isOwnCaptureLoss', () => {
+  const el = {} as EventTarget;
+  const img = {} as EventTarget;
+
+  it('counts capture lost by the marker element itself', () => {
+    expect(isOwnCaptureLoss(el, el)).toBe(true);
+  });
+
+  it('ignores capture lost by a child (touch implicit capture handed to the marker on lift)', () => {
+    expect(isOwnCaptureLoss(img, el)).toBe(false);
   });
 });
