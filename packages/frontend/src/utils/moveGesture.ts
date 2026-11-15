@@ -68,3 +68,12 @@ export function moveReducer(state: MoveState, action: MoveAction): MoveState {
       return null;
   }
 }
+
+/**
+ * Whether a `lostpointercapture` heard on a marker element means the press really lost its pointer. The event bubbles,
+ * and on touch the browser implicitly captures the pointer to the pressed child (the thumbnail `<img>`); moving capture
+ * to the marker element on lift fires `lostpointercapture` at that child, which must not cancel the lift.
+ */
+export function isOwnCaptureLoss(eventTarget: EventTarget | null, el: EventTarget): boolean {
+  return eventTarget === el;
+}

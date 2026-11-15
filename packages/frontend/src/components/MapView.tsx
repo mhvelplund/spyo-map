@@ -8,8 +8,9 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { GeoLocation, ImageRecord, MapViewProps } from '../types';
 import dotIcon from '../assets/dot.png';
-import { LONG_PRESS_MS, MOVE_TOLERANCE_PX, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
+import { LONG_PRESS_MS, MOVE_TOLERANCE_PX, isOwnCaptureLoss, pressReducer, type LatLng, type PressEvent, type PressState } from '../utils/moveGesture';
 import { collapseGroups, findDropTarget, type ScreenPoint } from '../utils/groups';
+import { MAP_MAX_ZOOM, TILE_MAX_NATIVE_ZOOM } from '../utils/mapZoom';
 import './MapContainer.css';
 
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.006];
@@ -224,7 +225,10 @@ const MarkerClusterLayer: React.FC<MarkerLayerProps> = ({
         else send({ type: 'cancel' });
       };
       el.addEventListener('pointercancel', cancel);
-      el.addEventListener('lostpointercapture', cancel); // after a normal drop the press is already idle
+      // After a normal drop the press is already idle. Capture lost by the <img> (touch hands it to `el` on lift) is not ours.
+      el.addEventListener('lostpointercapture', (e) => {
+        if (isOwnCaptureLoss(e.target, el)) cancel(e);
+      });
       // Mouse leaving the marker before it lifts is a map pan, not a press (touch keeps its target implicitly).
       el.addEventListener('pointerleave', (e) => {
         if (press.kind === 'pending' && e.pointerId === pointerId) send({ type: 'cancel' });
@@ -389,11 +393,14 @@ const MapView: React.FC<MapViewPropsExtended> = ({
       <MapContainer
         center={initialCenter}
         zoom={initialZoom}
+        maxZoom={MAP_MAX_ZOOM}
         style={{ width: '100%', height: '100%' }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={MAP_MAX_ZOOM}
+          maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
         />
         <MarkerClusterLayer
           images={images}
